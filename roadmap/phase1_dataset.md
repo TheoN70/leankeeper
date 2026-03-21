@@ -2,7 +2,7 @@
 
 ## Objectif
 
-Constituer un jeu de données structuré à partir de l'intégralité des données publiques du projet Mathlib (GitHub + Zulip + Git), exploitable pour l'entraînement d'un agent IA spécialisé sur les conventions et la qualité Mathlib.
+Constituer un jeu de données structuré à partir de l'intégralité des données publiques du projet Mathlib (GitHub + Zulip), exploitable pour l'entraînement d'un agent IA spécialisé sur les conventions et la qualité Mathlib.
 
 ---
 
@@ -41,7 +41,7 @@ Constituer un jeu de données structuré à partir de l'intégralité des donné
 - Rate limit : 5 000 requêtes/heure avec token authentifié.
 - Pagination : max 100 résultats par page.
 - Pour ~20 000 PRs avec reviews/comments : prévoir ~200 000 requêtes → ~40 heures à plein régime.
-- Alternative : **GitHub GraphQL API** — plus efficace, permet de batacher les requêtes.
+- Alternative : **GitHub GraphQL API** — plus efficace, permet de batcher les requêtes.
 - Alternative bis : **GH Archive** (gharchive.org) pour les événements historiques.
 
 ### 1.3 Zulip — Discussions communautaires
@@ -162,7 +162,7 @@ typeclass_instances: list[string]
 
 ## 3. Pipeline d'extraction
 
-### Étape 1 — Clone Git (jour 1)
+### Étape 1 — Clone Git
 
 ```bash
 # Clone miroir complet
@@ -184,7 +184,7 @@ git log --all -p --format="COMMIT:%H" > full_diffs.txt
 
 **Durée estimée :** 1-2 heures (clone + export).
 
-### Étape 2 — Extraction GitHub API (jours 2-4)
+### Étape 2 — Extraction GitHub API
 
 ```python
 """
@@ -315,7 +315,7 @@ if __name__ == "__main__":
 **Durée estimée :** 3-5 heures d'exécution (GraphQL est plus rapide que REST).
 **Volume estimé :** ~2-5 Go de JSON.
 
-### Étape 3 — Extraction Zulip (jours 3-4)
+### Étape 3 — Extraction Zulip
 
 ```python
 """
@@ -371,7 +371,7 @@ def fetch_messages(stream, topic=None, anchor="newest", num_before=1000):
 **Durée estimée :** 2-4 heures.
 **Volume estimé :** ~500 Mo - 1 Go.
 
-### Étape 4 — Extraction des déclarations Lean (jours 5-6)
+### Étape 4 — Extraction des déclarations Lean
 
 ```bash
 # Cloner Mathlib et builder
@@ -522,37 +522,6 @@ leankeeper-dataset/
 | J10 | Validation, documentation, README | Dataset complet |
 | J11-J12 | Publication Hugging Face + article de blog | Dataset public |
 
-**Durée totale : ~2 semaines** (une personne à temps plein).
 
----
 
-## 6. Considérations légales et éthiques
 
-### Licences
-
-- **Mathlib** : Apache 2.0 — libre d'utilisation, y compris commerciale.
-- **Discussions Zulip** : contenu public, mais vérifier les conditions d'utilisation de Zulip.
-- **Données GitHub** : les métadonnées de PRs/issues sont accessibles via API mais soumises aux ToS GitHub.
-
-### Éthique
-
-- **Anonymisation optionnelle** : les noms des contributeurs sont publics, mais on peut anonymiser si le dataset est utilisé pour de l'analyse comportementale.
-- **Respect de la communauté** : publier le dataset et la méthodologie ouvertement, proposer à la communauté Mathlib de review avant publication.
-- **Citation** : créditer explicitement tous les contributeurs Mathlib et le projet.
-
-### Alignement avec la communauté
-
-Avant de publier, partager le plan sur le Zulip Lean (`#general`) pour :
-- Obtenir du feedback sur le schéma de données.
-- Identifier des sources de données manquées.
-- S'assurer que la communauté est à l'aise avec l'utilisation prévue.
-- Potentiellement recruter des contributeurs.
-
----
-
-## 7. Prochaines étapes après le dataset
-
-1. **Analyse exploratoire** : statistiques sur les patterns de review (quels types de commentaires reviennent le plus souvent ?), cartographie de la hiérarchie de typeclasses, identification des zones les plus et moins couvertes.
-2. **Benchmark de qualité** : créer un benchmark "Mathlib Review Prediction" — étant donné une PR, prédire les commentaires du reviewer.
-3. **Fine-tuning** : entraîner un modèle sur les paires d'entraînement.
-4. **Évaluation** : soumettre des PRs générées par l'agent et mesurer le taux d'acceptation par les reviewers humains.
