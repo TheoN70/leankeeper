@@ -230,7 +230,11 @@ class GitHubExtractor:
         pr.title = node["title"]
         pr.body = node.get("body")
         pr.author = node["author"]["login"] if node.get("author") else "[deleted]"
-        pr.state = node["state"].lower()
+        state = node["state"].lower()
+        # Bors ferme les PRs puis merge séparément — GitHub ne les marque pas "merged"
+        if state == "closed" and node["title"].startswith("[Merged by Bors]"):
+            state = "merged"
+        pr.state = state
         pr.created_at = _parse_dt(node["createdAt"])
         pr.updated_at = _parse_dt(node.get("updatedAt"))
         pr.merged_at = _parse_dt(node.get("mergedAt"))
