@@ -37,12 +37,12 @@ python -m leankeeper stats
 python -m leankeeper extract github
 ```
 
-The GitHub extraction takes ~3-5h and populates PRs, reviews, and issue comments. Extractors are idempotent — you can interrupt and re-run safely.
+The GitHub extraction takes ~1h10 and populates PRs, reviews, and issue comments. Extractors are idempotent — you can interrupt and re-run safely.
 
 ## Usage
 
 ```bash
-# GitHub extraction (PRs, reviews, comments) — ~3-5h
+# GitHub extraction (PRs, reviews, comments) — ~1h10
 python -m leankeeper extract github
 
 # Review comments only

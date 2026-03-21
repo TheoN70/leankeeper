@@ -38,7 +38,7 @@ All commands run from the repo root via `python -m leankeeper`:
 
 ```bash
 # Extraction
-python -m leankeeper extract github          # PRs, reviews, issue comments (~3-5h)
+python -m leankeeper extract github          # PRs, reviews, issue comments (~1h10)
 python -m leankeeper extract github-reviews  # Review comments inline only (~2h)
 python -m leankeeper extract git             # Commits and stats (~1h)
 python -m leankeeper extract zulip           # Zulip messages (~2-4h)
