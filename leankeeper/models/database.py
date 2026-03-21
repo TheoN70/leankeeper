@@ -1,13 +1,13 @@
 """
-LeanKeeper — Modèles de base de données.
+LeanKeeper — Database models.
 
-Toutes les tables pour stocker les données extraites de :
+All tables for storing data extracted from:
 - Git (commits, diffs)
 - GitHub API (PRs, reviews, review comments)
 - Zulip (messages, channels, topics)
-- Lean/Mathlib (déclarations, imports, typeclasses)
+- Lean/Mathlib (declarations, imports, typeclasses)
 
-Utilise SQLAlchemy avec PostgreSQL.
+Uses SQLAlchemy with PostgreSQL.
 """
 
 from datetime import datetime
@@ -55,7 +55,7 @@ class Commit(Base):
 
 
 class CommitFile(Base):
-    """Fichiers modifiés par commit, avec le diff."""
+    """Files modified per commit, with diff."""
 
     __tablename__ = "commit_files"
 
@@ -64,7 +64,7 @@ class CommitFile(Base):
     filepath = Column(Text, nullable=False)
     additions = Column(Integer, default=0)
     deletions = Column(Integer, default=0)
-    patch = Column(Text)  # Le diff du fichier (peut être volumineux)
+    patch = Column(Text)  # File diff (can be large)
 
     commit = relationship("Commit", back_populates="files")
 
@@ -81,7 +81,7 @@ class PullRequest(Base):
 
     number = Column(Integer, primary_key=True)
     title = Column(Text, nullable=False)
-    body = Column(Text)  # Description markdown
+    body = Column(Text)  # Markdown description
     author = Column(String(255), nullable=False, index=True)
     state = Column(String(20), nullable=False, index=True)  # open, closed, merged
     created_at = Column(DateTime, nullable=False, index=True)
@@ -116,7 +116,7 @@ class PullRequestLabel(Base):
 
 
 class PullRequestFile(Base):
-    """Fichiers modifiés dans une PR, avec le patch."""
+    """Files modified in a PR, with patch."""
 
     __tablename__ = "pull_request_files"
 
@@ -126,7 +126,7 @@ class PullRequestFile(Base):
     status = Column(String(20))  # added, removed, modified, renamed
     additions = Column(Integer, default=0)
     deletions = Column(Integer, default=0)
-    patch = Column(Text)  # Le diff
+    patch = Column(Text)  # The diff
 
     pull_request = relationship("PullRequest", back_populates="files")
 
@@ -134,12 +134,12 @@ class PullRequestFile(Base):
 
 
 # ──────────────────────────────────────────────
-# GitHub — Reviews et commentaires
+# GitHub — Reviews and comments
 # ──────────────────────────────────────────────
 
 
 class Review(Base):
-    """Review globale d'une PR (approve, request changes, comment)."""
+    """Top-level PR review (approve, request changes, comment)."""
 
     __tablename__ = "reviews"
 
@@ -157,22 +157,22 @@ class Review(Base):
 
 
 class ReviewComment(Base):
-    """Commentaire inline sur une ligne de code dans une PR. Le plus précieux."""
+    """Inline comment on a specific code line in a PR. The most valuable data."""
 
     __tablename__ = "review_comments"
 
     id = Column(BigInteger, primary_key=True)  # GitHub comment ID
     pr_number = Column(Integer, ForeignKey("pull_requests.number"), nullable=False, index=True)
-    review_id = Column(BigInteger, ForeignKey("reviews.id"), index=True)  # Peut être null
+    review_id = Column(BigInteger, ForeignKey("reviews.id"), index=True)  # Can be null
     author = Column(String(255), nullable=False, index=True)
     body = Column(Text, nullable=False)
-    filepath = Column(Text)  # Fichier commenté
-    line = Column(Integer)  # Ligne commentée
+    filepath = Column(Text)  # Commented file
+    line = Column(Integer)  # Commented line
     original_line = Column(Integer)
-    diff_hunk = Column(Text)  # Contexte du diff autour du commentaire
+    diff_hunk = Column(Text)  # Diff context around the comment
     created_at = Column(DateTime, nullable=False)
     updated_at = Column(DateTime)
-    in_reply_to_id = Column(BigInteger)  # Pour les threads de discussion
+    in_reply_to_id = Column(BigInteger)  # For discussion threads
 
     pull_request = relationship("PullRequest", back_populates="review_comments")
 
@@ -183,7 +183,7 @@ class ReviewComment(Base):
 
 
 class IssueComment(Base):
-    """Commentaire général sur une PR (pas inline sur du code)."""
+    """General comment on a PR (not inline on code)."""
 
     __tablename__ = "issue_comments"
 
@@ -235,49 +235,49 @@ class ZulipMessage(Base):
 
 
 # ──────────────────────────────────────────────
-# Lean / Mathlib — Déclarations
+# Lean / Mathlib — Declarations
 # ──────────────────────────────────────────────
 
 
 class Declaration(Base):
-    """Une déclaration Lean dans Mathlib (theorem, def, instance, class, structure...)."""
+    """A Lean declaration in Mathlib (theorem, def, instance, class, structure...)."""
 
     __tablename__ = "declarations"
 
-    name = Column(String(500), primary_key=True)  # Ex: "Finset.sum_comm"
+    name = Column(String(500), primary_key=True)  # e.g. "Finset.sum_comm"
     kind = Column(String(30), nullable=False, index=True)  # theorem, def, instance, class, structure, lemma
     filepath = Column(Text, nullable=False, index=True)
     line = Column(Integer)
-    type_signature = Column(Text)  # Le type complet
+    type_signature = Column(Text)  # Full type
     docstring = Column(Text)
     is_public = Column(Boolean, default=True)
-    namespace = Column(String(500), index=True)  # Ex: "Finset"
+    namespace = Column(String(500), index=True)  # e.g. "Finset"
 
     def __repr__(self):
         return f"<Declaration {self.kind} {self.name}>"
 
 
 class Import(Base):
-    """Arc dans le graphe d'imports Mathlib."""
+    """Edge in the Mathlib import graph."""
 
     __tablename__ = "imports"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    source_file = Column(Text, nullable=False, index=True)  # Le fichier qui importe
-    target_file = Column(Text, nullable=False, index=True)  # Le fichier importé
+    source_file = Column(Text, nullable=False, index=True)  # The importing file
+    target_file = Column(Text, nullable=False, index=True)  # The imported file
 
     __table_args__ = (Index("ix_imports_edge", "source_file", "target_file", unique=True),)
 
 
 class TypeclassInstance(Base):
-    """Instance de typeclass dans Mathlib."""
+    """Typeclass instance in Mathlib."""
 
     __tablename__ = "typeclass_instances"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     instance_name = Column(String(500), nullable=False, index=True)
-    class_name = Column(String(500), nullable=False, index=True)  # La typeclass
-    type_args = Column(Text)  # Les arguments de type
+    class_name = Column(String(500), nullable=False, index=True)  # The typeclass
+    type_args = Column(Text)  # Type arguments
     filepath = Column(Text)
     line = Column(Integer)
 
@@ -285,7 +285,7 @@ class TypeclassInstance(Base):
 
 
 class TypeclassParent(Base):
-    """Hiérarchie des typeclasses (extends)."""
+    """Typeclass hierarchy (extends)."""
 
     __tablename__ = "typeclass_parents"
 
@@ -319,7 +319,7 @@ ALL_TABLES = [
 
 
 def init_db(database_url: str | None = None) -> sessionmaker:
-    """Crée toutes les tables et retourne un sessionmaker."""
+    """Create all tables and return a sessionmaker."""
     from leankeeper.config import DATABASE_URL as DEFAULT_URL
 
     url = database_url or DEFAULT_URL

@@ -1,7 +1,7 @@
 """
-LeanKeeper — Extracteur Git.
+LeanKeeper — Git extractor.
 
-Extrait les commits et diffs depuis le dépôt git cloné localement.
+Extracts commits and diffs from the locally cloned git repository.
 """
 
 import logging
@@ -21,7 +21,7 @@ class GitExtractor:
         self.repo_dir = GIT_CLONE_DIR
 
     def _run_git(self, *args, **kwargs) -> str:
-        """Exécute une commande git dans le dépôt."""
+        """Run a git command in the repository."""
         result = subprocess.run(
             ["git", *args],
             cwd=self.repo_dir,
@@ -38,26 +38,26 @@ class GitExtractor:
     # ──────────────────────────────────────────
 
     def clone_or_update(self):
-        """Clone le dépôt s'il n'existe pas, sinon fetch."""
+        """Clone the repository if it doesn't exist, otherwise fetch."""
         if self.repo_dir.exists():
-            logger.info(f"Dépôt existant, fetch...")
+            logger.info("Existing repository, fetching...")
             self._run_git("fetch", "--all")
         else:
-            logger.info(f"Clone de {GIT_CLONE_URL}...")
+            logger.info(f"Cloning {GIT_CLONE_URL}...")
             subprocess.run(
                 ["git", "clone", "--bare", GIT_CLONE_URL, str(self.repo_dir)],
                 check=True,
                 timeout=3600,
             )
-        logger.info("Dépôt prêt.")
+        logger.info("Repository ready.")
 
     # ──────────────────────────────────────────
-    # Extraction des commits
+    # Commit extraction
     # ──────────────────────────────────────────
 
     def extract_commits(self):
-        """Extrait tous les commits avec métadonnées."""
-        logger.info("Extraction des commits...")
+        """Extract all commits with metadata."""
+        logger.info("Extracting commits...")
 
         # Format: sha\x00author_name\x00author_email\x00date_iso\x00message
         SEP = "\x00"
@@ -69,7 +69,7 @@ class GitExtractor:
         )
 
         lines = output.strip().split("\n")
-        logger.info(f"{len(lines)} commits trouvés")
+        logger.info(f"{len(lines)} commits found")
 
         count = 0
         with self.session_factory() as session:
@@ -97,19 +97,19 @@ class GitExtractor:
 
                 if count % BATCH_SIZE == 0:
                     session.commit()
-                    logger.info(f"Commits: {count} insérés")
+                    logger.info(f"Commits: {count} inserted")
 
             session.commit()
 
-        logger.info(f"Commits terminé: {count} nouveaux commits")
+        logger.info(f"Commits done: {count} new commits")
 
     # ──────────────────────────────────────────
-    # Extraction des stats par commit (sans patch)
+    # Per-commit stats extraction (without patch)
     # ──────────────────────────────────────────
 
     def extract_commit_stats(self):
-        """Extrait insertions/deletions par commit (--numstat)."""
-        logger.info("Extraction des stats par commit...")
+        """Extract insertions/deletions per commit (--numstat)."""
+        logger.info("Extracting per-commit stats...")
 
         output = self._run_git(
             "log", "--all", "--numstat", "--format=COMMIT:%H",
@@ -126,7 +126,7 @@ class GitExtractor:
                     continue
 
                 if line.startswith("COMMIT:"):
-                    # Flush le batch précédent
+                    # Flush previous batch
                     if batch:
                         self._save_commit_files(session, current_sha, batch)
                         batch = []
@@ -143,16 +143,16 @@ class GitExtractor:
                             "deletions": int(deletions) if deletions != "-" else 0,
                         })
 
-            # Dernier batch
+            # Last batch
             if batch and current_sha:
                 self._save_commit_files(session, current_sha, batch)
 
             session.commit()
 
-        logger.info("Stats par commit terminées")
+        logger.info("Per-commit stats done")
 
     def _save_commit_files(self, session, sha: str, files: list[dict]):
-        """Sauvegarde les fichiers d'un commit et met à jour ses totaux."""
+        """Save commit files and update commit totals."""
         commit = session.get(Commit, sha)
         if not commit:
             return
@@ -161,7 +161,7 @@ class GitExtractor:
         total_del = 0
 
         for f in files:
-            # Vérifier si déjà présent
+            # Check if already present
             existing = (
                 session.query(CommitFile)
                 .filter_by(commit_sha=sha, filepath=f["filepath"])
@@ -181,18 +181,18 @@ class GitExtractor:
         commit.deletions = total_del
 
     # ──────────────────────────────────────────
-    # Extraction des patches (volumineux, optionnel)
+    # Patch extraction (large, optional)
     # ──────────────────────────────────────────
 
     def extract_commit_patches(self, since: str = None):
         """
-        Extrait les diffs complets par commit.
-        ATTENTION : très volumineux (10-50 Go). Utiliser since pour limiter.
+        Extract full diffs per commit.
+        WARNING: very large (10-50 GB). Use since to limit.
 
         Args:
-            since: date ISO (ex: "2024-01-01") — n'extrait que les commits après cette date.
+            since: ISO date (e.g. "2024-01-01") — only extract commits after this date.
         """
-        logger.info(f"Extraction des patches{f' depuis {since}' if since else ''}...")
+        logger.info(f"Extracting patches{f' since {since}' if since else ''}...")
 
         args = ["log", "--all", "-p", "--format=COMMIT:%H"]
         if since:
@@ -208,7 +208,7 @@ class GitExtractor:
         with self.session_factory() as session:
             for line in output.split("\n"):
                 if line.startswith("COMMIT:"):
-                    # Sauvegarder le fichier précédent
+                    # Save previous file
                     if current_sha and current_file:
                         self._save_patch(session, current_sha, current_file, current_patch_lines)
                         count += 1
@@ -218,11 +218,11 @@ class GitExtractor:
                     continue
 
                 if line.startswith("diff --git"):
-                    # Nouveau fichier dans le même commit
+                    # New file in the same commit
                     if current_sha and current_file:
                         self._save_patch(session, current_sha, current_file, current_patch_lines)
                         count += 1
-                    # Extraire le chemin b/...
+                    # Extract the b/... path
                     parts = line.split(" b/")
                     current_file = parts[-1] if len(parts) > 1 else None
                     current_patch_lines = [line]
@@ -233,18 +233,18 @@ class GitExtractor:
 
                 if count % BATCH_SIZE == 0 and count > 0:
                     session.commit()
-                    logger.info(f"Patches: {count} fichiers traités")
+                    logger.info(f"Patches: {count} files processed")
 
-            # Dernier fichier
+            # Last file
             if current_sha and current_file:
                 self._save_patch(session, current_sha, current_file, current_patch_lines)
 
             session.commit()
 
-        logger.info(f"Patches terminé: {count} fichiers")
+        logger.info(f"Patches done: {count} files")
 
     def _save_patch(self, session, sha: str, filepath: str, patch_lines: list[str]):
-        """Met à jour le patch d'un CommitFile existant."""
+        """Update the patch of an existing CommitFile."""
         patch = "\n".join(patch_lines)
         if len(patch) > MAX_PATCH_SIZE:
             patch = patch[:MAX_PATCH_SIZE] + "\n... [truncated]"
@@ -256,19 +256,19 @@ class GitExtractor:
         )
         if existing:
             existing.patch = patch
-        # Si le CommitFile n'existe pas encore, on ne crée pas sans stats
+        # If the CommitFile doesn't exist yet, don't create without stats
 
     # ──────────────────────────────────────────
-    # Orchestrateur
+    # Orchestrator
     # ──────────────────────────────────────────
 
     def extract_all(self, include_patches: bool = False, patches_since: str = None):
         """
-        Extraction complète.
+        Full extraction.
 
         Args:
-            include_patches: si True, extrait les diffs complets (volumineux).
-            patches_since: date ISO pour limiter les patches.
+            include_patches: if True, extract full diffs (large).
+            patches_since: ISO date to limit patches.
         """
         self.clone_or_update()
         self.extract_commits()
@@ -278,10 +278,10 @@ class GitExtractor:
 
 
 # ──────────────────────────────────────────────
-# Utilitaires
+# Utilities
 # ──────────────────────────────────────────────
 
 
 def _parse_git_date(s: str) -> datetime:
-    """Parse une date ISO git."""
+    """Parse an ISO git date."""
     return datetime.fromisoformat(s)

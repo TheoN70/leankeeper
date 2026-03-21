@@ -57,7 +57,7 @@ python -m leankeeper export <table> <output_path>
 # Tables: commits, commit_files, pull_requests, pr_files, reviews, review_comments, issue_comments, zulip_channels, zulip_messages
 
 # Migrations
-python -m leankeeper.migrations.001_bigint_ids  # Integer → BigInteger pour IDs GitHub/Zulip
+python -m leankeeper.migrations.001_bigint_ids  # Integer → BigInteger for GitHub/Zulip IDs
 ```
 
 ## Architecture
@@ -91,4 +91,4 @@ All public and extractible via GitHub and Zulip APIs:
 
 ### Language
 
-Codebase comments and logs are in French. CLI output and database schema use English identifiers.
+The project language is English. All code, comments, docstrings, log messages, and CLI output are in English.

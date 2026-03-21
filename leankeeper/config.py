@@ -6,7 +6,7 @@ from pathlib import Path
 import os
 
 # ──────────────────────────────────────────────
-# Chemins
+# Paths
 # ──────────────────────────────────────────────
 
 PROJECT_ROOT = Path(__file__).parent
@@ -14,7 +14,7 @@ DATA_DIR = PROJECT_ROOT / "data"
 DATA_DIR.mkdir(exist_ok=True)
 
 # ──────────────────────────────────────────────
-# Base de données
+# Database
 # ──────────────────────────────────────────────
 
 DATABASE_URL = os.getenv("DATABASE_URL")
@@ -23,15 +23,15 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 # GitHub
 # ──────────────────────────────────────────────
 
-GITHUB_TOKEN = os.getenv("GITHUB_READ_ONLY_TOKEN") # gh token avec permissions repo:read
+GITHUB_TOKEN = os.getenv("GITHUB_READ_ONLY_TOKEN")  # gh token with repo:read permissions
 GITHUB_REPO_OWNER = "leanprover-community"
 GITHUB_REPO_NAME = "mathlib4"
 GITHUB_GRAPHQL_URL = "https://api.github.com/graphql"
 GITHUB_REST_URL = "https://api.github.com"
 
 # Rate limiting
-GITHUB_REQUESTS_PER_HOUR = 5000  # Avec token authentifié
-GITHUB_SLEEP_BETWEEN_PAGES = 0.5  # Secondes entre chaque page
+GITHUB_REQUESTS_PER_HOUR = 5000  # With authenticated token
+GITHUB_SLEEP_BETWEEN_PAGES = 0.5  # Seconds between each page
 
 # ──────────────────────────────────────────────
 # Git
@@ -40,8 +40,8 @@ GITHUB_SLEEP_BETWEEN_PAGES = 0.5  # Secondes entre chaque page
 GIT_CLONE_URL = "https://github.com/leanprover-community/mathlib4.git"
 GIT_CLONE_DIR = DATA_DIR / "mathlib4.git"
 
-# Limiter la taille des diffs stockés (en caractères)
-# Les diffs très volumineux (fichiers générés, etc.) sont tronqués
+# Limit stored diff size (in characters)
+# Very large diffs (generated files, etc.) are truncated
 MAX_PATCH_SIZE = 100_000
 
 # ──────────────────────────────────────────────
@@ -49,10 +49,10 @@ MAX_PATCH_SIZE = 100_000
 # ──────────────────────────────────────────────
 
 ZULIP_BASE_URL = "https://leanprover.zulipchat.com/api/v1"
-ZULIP_EMAIL = os.getenv("ZULIP_EMAIL")  # Email du compte Zulip
-ZULIP_API_KEY = os.getenv("ZULIP_API_KEY")  # Clé API Zulip (Settings > Your bots)
+ZULIP_EMAIL = os.getenv("ZULIP_EMAIL")  # Zulip account email
+ZULIP_API_KEY = os.getenv("ZULIP_API_KEY")  # Zulip API key (Settings > Your bots)
 
-# Channels à extraire (par ordre de priorité)
+# Channels to extract (by priority)
 ZULIP_CHANNELS = [
     "general",
     "mathlib4",
@@ -72,7 +72,7 @@ ZULIP_CHANNELS = [
 # Extraction
 # ──────────────────────────────────────────────
 
-# Taille des batchs pour les insertions en base
+# Batch size for database inserts
 BATCH_SIZE = 500
 
 # Logs

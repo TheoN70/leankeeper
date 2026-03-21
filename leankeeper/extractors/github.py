@@ -1,8 +1,8 @@
 """
-LeanKeeper — Extracteur GitHub.
+LeanKeeper — GitHub extractor.
 
-Extrait les PRs, reviews, review comments et issue comments
-via l'API GraphQL (pour le gros) et REST (pour les compléments).
+Extracts PRs, reviews, review comments and issue comments
+via the GraphQL API (bulk) and REST API (supplements).
 """
 
 import logging
@@ -35,7 +35,7 @@ logger = logging.getLogger(__name__)
 
 
 # ──────────────────────────────────────────────
-# GraphQL — Extraction des PRs avec reviews
+# GraphQL — PR extraction with reviews
 # ──────────────────────────────────────────────
 
 GRAPHQL_PRS_QUERY = """
@@ -105,7 +105,7 @@ class GitHubExtractor:
         self._request_count = 0
 
     def _graphql(self, query: str, variables: dict) -> dict:
-        """Exécute une requête GraphQL avec gestion du rate limiting."""
+        """Execute a GraphQL query with rate limiting."""
         while True:
             self._request_count += 1
             response = requests.post(
@@ -132,7 +132,7 @@ class GitHubExtractor:
             response.raise_for_status()
 
     def _rest_get(self, endpoint: str, params: dict = None) -> list | dict:
-        """Requête REST avec pagination automatique."""
+        """REST request with automatic pagination."""
         url = f"{GITHUB_REST_URL}/repos/{GITHUB_REPO_OWNER}/{GITHUB_REPO_NAME}/{endpoint}"
         results = []
 
@@ -146,7 +146,7 @@ class GitHubExtractor:
                 except (requests.exceptions.ConnectionError, requests.exceptions.ChunkedEncodingError) as e:
                     if attempt < 2:
                         wait = 5 * (attempt + 1)
-                        logger.warning(f"Erreur réseau ({e.__class__.__name__}), retry dans {wait}s...")
+                        logger.warning(f"Network error ({e.__class__.__name__}), retrying in {wait}s...")
                         time.sleep(wait)
                     else:
                         raise
@@ -174,18 +174,18 @@ class GitHubExtractor:
                         url = part.split(";")[0].strip(" <>")
                         break
 
-            params = None  # Les params sont dans l'URL de pagination
+            params = None  # Params are embedded in the pagination URL
             time.sleep(GITHUB_SLEEP_BETWEEN_PAGES)
 
         return results
 
     # ──────────────────────────────────────────
-    # Extraction des PRs (GraphQL)
+    # PR extraction (GraphQL)
     # ──────────────────────────────────────────
 
     def extract_pull_requests(self):
-        """Extrait toutes les PRs avec reviews et issue comments."""
-        logger.info("Extraction des pull requests via GraphQL...")
+        """Extract all PRs with reviews and issue comments."""
+        logger.info("Extracting pull requests via GraphQL...")
 
         cursor = None
         total_extracted = 0
@@ -216,10 +216,10 @@ class GitHubExtractor:
             cursor = pr_data["pageInfo"]["endCursor"]
             time.sleep(GITHUB_SLEEP_BETWEEN_PAGES)
 
-        logger.info(f"Extraction PRs terminée: {total_extracted} PRs, {self._request_count} requêtes")
+        logger.info(f"PR extraction done: {total_extracted} PRs, {self._request_count} requests")
 
     def _upsert_pr(self, session, node: dict):
-        """Insère ou met à jour une PR et ses relations."""
+        """Insert or update a PR and its relations."""
         pr_number = node["number"]
 
         pr = session.get(PullRequest, pr_number)
@@ -231,7 +231,7 @@ class GitHubExtractor:
         pr.body = node.get("body")
         pr.author = node["author"]["login"] if node.get("author") else "[deleted]"
         state = node["state"].lower()
-        # Bors ferme les PRs puis merge séparément — GitHub ne les marque pas "merged"
+        # Bors closes PRs then merges separately — GitHub doesn't mark them as "merged"
         if state == "closed" and node["title"].startswith("[Merged by Bors]"):
             state = "merged"
         pr.state = state
@@ -264,7 +264,7 @@ class GitHubExtractor:
                     submitted_at=_parse_dt(review_node["submittedAt"]),
                 ))
 
-        # Issue comments (commentaires généraux)
+        # Issue comments (general comments)
         for comment_node in node.get("comments", {}).get("nodes", []):
             comment_id = comment_node.get("databaseId")
             if comment_id and not session.get(IssueComment, comment_id):
@@ -278,15 +278,15 @@ class GitHubExtractor:
                 ))
 
     # ──────────────────────────────────────────
-    # Review comments inline (REST — pas dispo en GraphQL avec diff_hunk)
+    # Inline review comments (REST — not available in GraphQL with diff_hunk)
     # ──────────────────────────────────────────
 
     def extract_review_comments(self):
         """
-        Extrait tous les review comments inline via l'API REST.
-        C'est la donnée la plus précieuse : commentaires sur des lignes de code spécifiques.
+        Extract all inline review comments via the REST API.
+        This is the most valuable data: comments on specific code lines.
         """
-        logger.info("Extraction des review comments inline via REST...")
+        logger.info("Extracting inline review comments via REST...")
 
         comments = self._rest_get("pulls/comments", params={"per_page": 100, "sort": "created", "direction": "asc"})
 
@@ -297,7 +297,7 @@ class GitHubExtractor:
                 if session.get(ReviewComment, comment_id):
                     continue
 
-                # Extraire le numéro de PR depuis l'URL
+                # Extract PR number from URL
                 pr_number = _extract_pr_number(c.get("pull_request_url", ""))
                 if not pr_number:
                     continue
@@ -320,26 +320,26 @@ class GitHubExtractor:
 
                 if count % BATCH_SIZE == 0:
                     session.commit()
-                    logger.info(f"Review comments: {count} insérés")
+                    logger.info(f"Review comments: {count} inserted")
 
             session.commit()
 
-        logger.info(f"Review comments terminé: {count} commentaires")
+        logger.info(f"Review comments done: {count} comments")
 
     # ──────────────────────────────────────────
-    # Fichiers modifiés par PR (REST)
+    # Files modified per PR (REST)
     # ──────────────────────────────────────────
 
     def extract_pr_files(self, pr_numbers: list[int] = None):
         """
-        Extrait les fichiers modifiés + patches pour chaque PR.
-        Si pr_numbers est None, extrait pour toutes les PRs en base.
+        Extract modified files + patches for each PR.
+        If pr_numbers is None, extracts for all PRs in the database.
         """
         with self.session_factory() as session:
             if pr_numbers is None:
                 pr_numbers = [pr.number for pr in session.query(PullRequest.number).all()]
 
-        logger.info(f"Extraction des fichiers pour {len(pr_numbers)} PRs...")
+        logger.info(f"Extracting files for {len(pr_numbers)} PRs...")
 
         count = 0
         for i, pr_number in enumerate(pr_numbers):
@@ -350,7 +350,7 @@ class GitHubExtractor:
                 continue
 
             with self.session_factory() as session:
-                # Supprimer les fichiers existants pour cette PR
+                # Delete existing files for this PR
                 session.query(PullRequestFile).filter_by(pr_number=pr_number).delete()
 
                 for f in files:
@@ -371,31 +371,31 @@ class GitHubExtractor:
                 session.commit()
 
             if (i + 1) % 100 == 0:
-                logger.info(f"PR files: {i + 1}/{len(pr_numbers)} PRs traitées ({count} fichiers)")
+                logger.info(f"PR files: {i + 1}/{len(pr_numbers)} PRs processed ({count} files)")
 
             time.sleep(GITHUB_SLEEP_BETWEEN_PAGES)
 
-        logger.info(f"PR files terminé: {count} fichiers pour {len(pr_numbers)} PRs")
+        logger.info(f"PR files done: {count} files for {len(pr_numbers)} PRs")
 
     # ──────────────────────────────────────────
-    # Orchestrateur
+    # Orchestrator
     # ──────────────────────────────────────────
 
     def extract_all(self, include_pr_files: bool = False):
         """
-        Extraction complète.
-        include_pr_files=True est lent (~20 000 requêtes REST) mais donne les patches.
+        Full extraction.
+        include_pr_files=True is slow (~20,000 REST requests) but provides patches.
         """
         self.extract_pull_requests()
         self.extract_review_comments()
         if include_pr_files:
             self.extract_pr_files()
 
-        logger.info(f"Extraction GitHub terminée. Total requêtes: {self._request_count}")
+        logger.info(f"GitHub extraction done. Total requests: {self._request_count}")
 
 
 # ──────────────────────────────────────────────
-# Utilitaires
+# Utilities
 # ──────────────────────────────────────────────
 
 
@@ -406,7 +406,7 @@ def _parse_dt(s: str | None) -> datetime | None:
 
 
 def _extract_pr_number(url: str) -> int | None:
-    """Extrait le numéro de PR depuis une URL GitHub."""
+    """Extract PR number from a GitHub URL."""
     if not url:
         return None
     try:

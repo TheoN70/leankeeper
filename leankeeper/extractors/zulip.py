@@ -1,8 +1,7 @@
 """
-LeanKeeper — Extracteur Zulip.
+LeanKeeper — Zulip extractor.
 
-Extrait les messages, channels et topics depuis le Zulip Lean.
-Deux modes : API directe (nécessite un compte) ou archive HTML publique.
+Extracts messages, channels and topics from Lean Zulip.
 """
 
 import logging
@@ -29,7 +28,7 @@ class ZulipExtractor:
         self.auth = (ZULIP_EMAIL, ZULIP_API_KEY)
 
     def _get(self, endpoint: str, params: dict = None) -> dict:
-        """Requête GET sur l'API Zulip."""
+        """GET request to the Zulip API."""
         url = f"{ZULIP_BASE_URL}/{endpoint}"
         response = requests.get(url, auth=self.auth, params=params, timeout=30)
         response.raise_for_status()
@@ -43,8 +42,8 @@ class ZulipExtractor:
     # ──────────────────────────────────────────
 
     def extract_channels(self):
-        """Extrait les channels (streams) publics."""
-        logger.info("Extraction des channels Zulip...")
+        """Extract public channels (streams)."""
+        logger.info("Extracting Zulip channels...")
 
         data = self._get("streams")
         streams = data.get("streams", [])
@@ -53,7 +52,7 @@ class ZulipExtractor:
         with self.session_factory() as session:
             for stream in streams:
                 name = stream["name"]
-                # Filtrer sur les channels d'intérêt
+                # Filter on channels of interest
                 if ZULIP_CHANNELS and name not in ZULIP_CHANNELS:
                     continue
 
@@ -70,7 +69,7 @@ class ZulipExtractor:
 
             session.commit()
 
-        logger.info(f"Channels: {count} extraits")
+        logger.info(f"Channels: {count} extracted")
         return count
 
     # ──────────────────────────────────────────
@@ -79,16 +78,16 @@ class ZulipExtractor:
 
     def extract_messages(self, channel_name: str):
         """
-        Extrait tous les messages d'un channel.
-        Utilise l'ancre pour paginer en arrière depuis le message le plus récent.
+        Extract all messages from a channel.
+        Uses anchor to paginate backward from the most recent message.
         """
-        logger.info(f"Extraction des messages de #{channel_name}...")
+        logger.info(f"Extracting messages from #{channel_name}...")
 
-        # Récupérer l'ID du channel
+        # Get channel ID
         with self.session_factory() as session:
             channel = session.query(ZulipChannel).filter_by(name=channel_name).first()
             if not channel:
-                logger.warning(f"Channel #{channel_name} non trouvé en base. Lancer extract_channels() d'abord.")
+                logger.warning(f"Channel #{channel_name} not found in database. Run extract_channels() first.")
                 return
             channel_id = channel.id
 
@@ -103,17 +102,17 @@ class ZulipExtractor:
                     "num_before": 1000,
                     "num_after": 0,
                     "narrow": f'[{{"operator": "stream", "operand": "{channel_name}"}}]',
-                    "apply_markdown": "false",  # On veut le markdown brut
+                    "apply_markdown": "false",  # We want raw markdown
                 })
             except Exception as e:
-                logger.error(f"Erreur extraction #{channel_name}: {e}")
+                logger.error(f"Error extracting #{channel_name}: {e}")
                 break
 
             messages = data.get("messages", [])
             if not messages:
                 break
 
-            # Détecter les doublons (fin de pagination)
+            # Detect duplicates (end of pagination)
             new_messages = [m for m in messages if m["id"] not in seen_ids]
             if not new_messages:
                 break
@@ -140,23 +139,23 @@ class ZulipExtractor:
 
                 session.commit()
 
-            logger.info(f"#{channel_name}: {total_count} messages extraits")
+            logger.info(f"#{channel_name}: {total_count} messages extracted")
 
-            # Pagination en arrière
+            # Backward pagination
             oldest_id = min(m["id"] for m in new_messages)
             anchor = str(oldest_id)
 
-            time.sleep(1)  # Politesse Zulip
+            time.sleep(1)  # Zulip rate limiting courtesy
 
-        logger.info(f"#{channel_name} terminé: {total_count} messages")
+        logger.info(f"#{channel_name} done: {total_count} messages")
         return total_count
 
     # ──────────────────────────────────────────
-    # Orchestrateur
+    # Orchestrator
     # ──────────────────────────────────────────
 
     def extract_all(self):
-        """Extrait les channels puis tous les messages des channels configurés."""
+        """Extract channels then all messages from configured channels."""
         self.extract_channels()
 
         total = 0
@@ -165,4 +164,4 @@ class ZulipExtractor:
             if count:
                 total += count
 
-        logger.info(f"Extraction Zulip terminée: {total} messages au total")
+        logger.info(f"Zulip extraction done: {total} messages total")

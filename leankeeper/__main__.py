@@ -1,15 +1,16 @@
 """
-LeanKeeper — Point d'entrée CLI.
+LeanKeeper — CLI entry point.
 
 Usage:
-    python -m leankeeper extract github       # PRs, reviews, comments
-    python -m leankeeper extract github-files  # Fichiers modifiés par PR (lent)
-    python -m leankeeper extract git           # Commits et stats
-    python -m leankeeper extract git-patches   # Diffs complets (volumineux)
-    python -m leankeeper extract zulip         # Messages Zulip
-    python -m leankeeper extract all           # Tout sauf patches et PR files
-    python -m leankeeper stats                 # Affiche les stats de la base
-    python -m leankeeper export <table> <path> # Exporte une table en JSONL
+    python -m leankeeper extract github          # PRs, reviews, comments
+    python -m leankeeper extract github-reviews  # Inline review comments only
+    python -m leankeeper extract github-files    # Files modified per PR (slow)
+    python -m leankeeper extract git             # Commits and stats
+    python -m leankeeper extract git-patches     # Full diffs (large)
+    python -m leankeeper extract zulip           # Zulip messages
+    python -m leankeeper extract all             # All except patches and PR files
+    python -m leankeeper stats                   # Show database stats
+    python -m leankeeper export <table> <path>   # Export a table to JSONL
 """
 
 import argparse
@@ -40,7 +41,7 @@ logger = logging.getLogger("leankeeper")
 
 
 def cmd_extract(args, session_factory):
-    """Commande d'extraction."""
+    """Run extraction."""
     target = args.target
 
     if target in ("github", "all"):
@@ -81,7 +82,7 @@ def cmd_extract(args, session_factory):
 
 
 def cmd_stats(args, session_factory):
-    """Affiche les statistiques de la base."""
+    """Display database statistics."""
     with session_factory() as session:
         tables = [
             ("Commits", Commit),
@@ -109,13 +110,13 @@ def cmd_stats(args, session_factory):
         print(f"║  {'Total':<28} {total:>6} ║")
         print("╚══════════════════════════════════════╝")
 
-        # Stats détaillées
-        print("\n── Pull Requests par état ──")
+        # Detailed stats
+        print("\n── Pull Requests by state ──")
         for state in ("merged", "closed", "open"):
             count = session.query(PullRequest).filter_by(state=state).count()
             print(f"  {state}: {count}")
 
-        print("\n── Review Comments : top reviewers ──")
+        print("\n── Review Comments: top reviewers ──")
         from sqlalchemy import func
 
         top = (
@@ -126,13 +127,13 @@ def cmd_stats(args, session_factory):
             .all()
         )
         for author, count in top:
-            print(f"  {author}: {count} commentaires")
+            print(f"  {author}: {count} comments")
 
         print()
 
 
 def cmd_export(args, session_factory):
-    """Exporte une table en JSONL."""
+    """Export a table to JSONL."""
     from sqlalchemy import inspect
 
     table_map = {
@@ -149,12 +150,12 @@ def cmd_export(args, session_factory):
 
     model = table_map.get(args.table)
     if not model:
-        print(f"Table inconnue: {args.table}")
-        print(f"Tables disponibles: {', '.join(table_map.keys())}")
+        print(f"Unknown table: {args.table}")
+        print(f"Available tables: {', '.join(table_map.keys())}")
         sys.exit(1)
 
     output_path = args.output
-    logger.info(f"Export de {args.table} vers {output_path}...")
+    logger.info(f"Exporting {args.table} to {output_path}...")
 
     columns = [c.key for c in inspect(model).mapper.column_attrs]
 
@@ -171,30 +172,30 @@ def cmd_export(args, session_factory):
                 f.write(json.dumps(obj, ensure_ascii=False) + "\n")
                 count += 1
 
-    logger.info(f"Export terminé: {count} lignes dans {output_path}")
+    logger.info(f"Export done: {count} rows to {output_path}")
 
 
 def main():
-    parser = argparse.ArgumentParser(description="LeanKeeper — Dataset Mathlib")
+    parser = argparse.ArgumentParser(description="LeanKeeper — Mathlib Dataset")
     parser.add_argument("--db", default=DATABASE_URL, help="Database URL")
     subparsers = parser.add_subparsers(dest="command")
 
     # extract
-    extract_parser = subparsers.add_parser("extract", help="Extraire des données")
+    extract_parser = subparsers.add_parser("extract", help="Extract data")
     extract_parser.add_argument(
         "target",
-        choices=["github", "github-files", "git", "git-patches", "zulip", "all"],
-        help="Source à extraire",
+        choices=["github", "github-reviews", "github-files", "git", "git-patches", "zulip", "all"],
+        help="Data source to extract",
     )
-    extract_parser.add_argument("--since", help="Date ISO pour limiter (git-patches)")
+    extract_parser.add_argument("--since", help="ISO date to limit (git-patches)")
 
     # stats
-    subparsers.add_parser("stats", help="Afficher les stats de la base")
+    subparsers.add_parser("stats", help="Show database stats")
 
     # export
-    export_parser = subparsers.add_parser("export", help="Exporter une table en JSONL")
-    export_parser.add_argument("table", help="Nom de la table")
-    export_parser.add_argument("output", help="Chemin du fichier de sortie")
+    export_parser = subparsers.add_parser("export", help="Export a table to JSONL")
+    export_parser.add_argument("table", help="Table name")
+    export_parser.add_argument("output", help="Output file path")
 
     args = parser.parse_args()
 
