@@ -23,7 +23,7 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 # GitHub
 # ──────────────────────────────────────────────
 
-GITHUB_TOKEN = os.getenv("GITHUB_TOKEN") # gh token avec permissions repo:read
+GITHUB_TOKEN = os.getenv("GITHUB_READ_ONLY_TOKEN") # gh token avec permissions repo:read
 GITHUB_REPO_OWNER = "leanprover-community"
 GITHUB_REPO_NAME = "mathlib4"
 GITHUB_GRAPHQL_URL = "https://api.github.com/graphql"

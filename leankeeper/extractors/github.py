@@ -138,7 +138,18 @@ class GitHubExtractor:
 
         while url:
             self._request_count += 1
-            response = requests.get(url, headers=self.headers, params=params, timeout=30)
+
+            for attempt in range(3):
+                try:
+                    response = requests.get(url, headers=self.headers, params=params, timeout=30)
+                    break
+                except (requests.exceptions.ConnectionError, requests.exceptions.ChunkedEncodingError) as e:
+                    if attempt < 2:
+                        wait = 5 * (attempt + 1)
+                        logger.warning(f"Erreur réseau ({e.__class__.__name__}), retry dans {wait}s...")
+                        time.sleep(wait)
+                    else:
+                        raise
 
             if response.status_code in (403, 429):
                 reset = int(response.headers.get("X-RateLimit-Reset", time.time() + 60))

@@ -24,6 +24,9 @@ ZULIP_API_KEY = "..."          # Clé API (Settings > Your bots)
 # Extraction GitHub (PRs, reviews, comments) — ~3-5h
 python -m leankeeper extract github
 
+# Extraction reviews uniquement :
+python -m leankeeper extract github-reviews
+
 # Extraction Git (commits, stats) — ~1h
 python -m leankeeper extract git
 

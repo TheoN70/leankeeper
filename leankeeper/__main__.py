@@ -49,6 +49,12 @@ def cmd_extract(args, session_factory):
         extractor = GitHubExtractor(session_factory)
         extractor.extract_all(include_pr_files=False)
 
+    if target == "github-reviews":
+        from leankeeper.extractors.github import GitHubExtractor
+
+        extractor = GitHubExtractor(session_factory)
+        extractor.extract_review_comments()
+
     if target == "github-files":
         from leankeeper.extractors.github import GitHubExtractor
 

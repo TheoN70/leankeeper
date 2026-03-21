@@ -13,6 +13,7 @@ Utilise SQLAlchemy avec PostgreSQL.
 from datetime import datetime
 
 from sqlalchemy import (
+    BigInteger,
     Boolean,
     Column,
     DateTime,
@@ -142,7 +143,7 @@ class Review(Base):
 
     __tablename__ = "reviews"
 
-    id = Column(Integer, primary_key=True)  # GitHub review ID
+    id = Column(BigInteger, primary_key=True)  # GitHub review ID
     pr_number = Column(Integer, ForeignKey("pull_requests.number"), nullable=False, index=True)
     author = Column(String(255), nullable=False, index=True)
     state = Column(String(30), nullable=False, index=True)  # APPROVED, CHANGES_REQUESTED, COMMENTED
@@ -160,9 +161,9 @@ class ReviewComment(Base):
 
     __tablename__ = "review_comments"
 
-    id = Column(Integer, primary_key=True)  # GitHub comment ID
+    id = Column(BigInteger, primary_key=True)  # GitHub comment ID
     pr_number = Column(Integer, ForeignKey("pull_requests.number"), nullable=False, index=True)
-    review_id = Column(Integer, ForeignKey("reviews.id"), index=True)  # Peut être null
+    review_id = Column(BigInteger, ForeignKey("reviews.id"), index=True)  # Peut être null
     author = Column(String(255), nullable=False, index=True)
     body = Column(Text, nullable=False)
     filepath = Column(Text)  # Fichier commenté
@@ -171,7 +172,7 @@ class ReviewComment(Base):
     diff_hunk = Column(Text)  # Contexte du diff autour du commentaire
     created_at = Column(DateTime, nullable=False)
     updated_at = Column(DateTime)
-    in_reply_to_id = Column(Integer)  # Pour les threads de discussion
+    in_reply_to_id = Column(BigInteger)  # Pour les threads de discussion
 
     pull_request = relationship("PullRequest", back_populates="review_comments")
 
@@ -186,7 +187,7 @@ class IssueComment(Base):
 
     __tablename__ = "issue_comments"
 
-    id = Column(Integer, primary_key=True)  # GitHub comment ID
+    id = Column(BigInteger, primary_key=True)  # GitHub comment ID
     pr_number = Column(Integer, ForeignKey("pull_requests.number"), nullable=False, index=True)
     author = Column(String(255), nullable=False, index=True)
     body = Column(Text, nullable=False)
@@ -204,7 +205,7 @@ class IssueComment(Base):
 class ZulipChannel(Base):
     __tablename__ = "zulip_channels"
 
-    id = Column(Integer, primary_key=True)  # Zulip stream ID
+    id = Column(BigInteger, primary_key=True)  # Zulip stream ID
     name = Column(String(255), nullable=False, unique=True, index=True)
     description = Column(Text)
 
@@ -217,8 +218,8 @@ class ZulipChannel(Base):
 class ZulipMessage(Base):
     __tablename__ = "zulip_messages"
 
-    id = Column(Integer, primary_key=True)  # Zulip message ID
-    channel_id = Column(Integer, ForeignKey("zulip_channels.id"), nullable=False, index=True)
+    id = Column(BigInteger, primary_key=True)  # Zulip message ID
+    channel_id = Column(BigInteger, ForeignKey("zulip_channels.id"), nullable=False, index=True)
     topic = Column(String(500), nullable=False, index=True)
     sender_name = Column(String(255), nullable=False, index=True)
     sender_email = Column(String(255))

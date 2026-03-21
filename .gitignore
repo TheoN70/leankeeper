@@ -1,2 +1,4 @@
 .env
 venv
+leankeeper/extractors/__pycache__/
+leankeeper/__pycache__/*
