@@ -122,6 +122,10 @@ leankeeper/
 └── data/                # Generated data directory
 ```
 
+## Documentation
+
+For detailed documentation, see the [project wiki](https://github.com/your-org/leankeeper/wiki).
+
 ## License
 
 Apache 2.0 — aligned with the Mathlib license.

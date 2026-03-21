@@ -93,6 +93,11 @@ All public and extractible via GitHub and Zulip APIs:
 - Linter/CI results
 - Import dependency graph
 
+### Documentation
+
+- **[Project wiki](https://github.com/TheoN70/leankeeper/wiki)** — Published as a separate GitHub wiki repo (`wiki/` directory). Covers quickstart, architecture, data sources, training pairs, Mathlib conventions, and roadmap.
+- **[`DB_ARCHITECTURE.md`](DB_ARCHITECTURE.md)** — Full database schema documentation.
+
 ### Language
 
 The project language is English. All code, comments, docstrings, log messages, and CLI output are in English.

@@ -84,6 +84,12 @@ Not "does it compile" (trivial) but **"does it pass Mathlib review"** — mainta
 - Recent funding: **$10M from Alex Gerko** (XTX Markets) — $5M to Lean FRO, $5M to the Mathlib Initiative.
 
 
+## Documentation
+
+- **[Project wiki](https://github.com/TheoN70/leankeeper/wiki)** — Quickstart, architecture, data sources, conventions, roadmap
+- **[`leankeeper/README.md`](leankeeper/README.md)** — Package-level setup and usage
+- **[`DB_ARCHITECTURE.md`](DB_ARCHITECTURE.md)** — Full database schema
+
 ## References
 
 - [Mathlib GitHub](https://github.com/leanprover-community/mathlib4)
