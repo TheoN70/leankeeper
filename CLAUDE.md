@@ -75,6 +75,10 @@ The project is currently in **Phase 1 (Dataset)** — building extractors to col
   - **`zulip.py`** (`ZulipExtractor`) — Extracts channels and messages via Zulip REST API with backward pagination from newest.
 - **`migrations/`** — Database migration scripts (run individually as modules).
 
+### Database
+
+PostgreSQL with SQLAlchemy ORM. External IDs (GitHub, Zulip) use `BigInteger` (64-bit). Tables auto-created by `init_db()`. Full schema documentation in [`DB_ARCHITECTURE.md`](DB_ARCHITECTURE.md).
+
 ### Data flow
 
 All extractors follow the same pattern: `Extractor(session_factory)` → `extract_all()` → upsert into PostgreSQL via SQLAlchemy sessions, committed in batches (`BATCH_SIZE=500`). Extractors are idempotent — re-running updates existing records (upsert).
