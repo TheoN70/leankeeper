@@ -124,7 +124,7 @@ leankeeper/
 
 ## Documentation
 
-For detailed documentation, see the [project wiki](https://github.com/your-org/leankeeper/wiki).
+For detailed documentation, see the [project wiki](https://github.com/TheoN70/leankeeper/wiki).
 
 ## License
 
