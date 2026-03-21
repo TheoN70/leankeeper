@@ -27,11 +27,10 @@ Dependencies: `sqlalchemy>=2.0`, `requests>=2.31`.
 
 ### Configuration
 
-Edit `leankeeper/config.py` to set API credentials before running extractors:
-- `GITHUB_TOKEN` — GitHub personal access token with `repo:read`
+All credentials are loaded from environment variables (see `leankeeper/config.py`):
+- `DATABASE_URL` — PostgreSQL connection string (required)
+- `GITHUB_READ_ONLY_TOKEN` — GitHub personal access token
 - `ZULIP_EMAIL` / `ZULIP_API_KEY` — Zulip account credentials
-
-Database defaults to SQLite at `leankeeper/data/leankeeper.db`. Set `DATABASE_URL` in config.py for PostgreSQL.
 
 ### CLI Commands
 
@@ -39,14 +38,15 @@ All commands run from the repo root via `python -m leankeeper`:
 
 ```bash
 # Extraction
-python -m leankeeper extract github         # PRs, reviews, comments (~3-5h)
-python -m leankeeper extract git            # Commits and stats (~1h)
-python -m leankeeper extract zulip          # Zulip messages (~2-4h)
-python -m leankeeper extract all            # All above (excludes patches and PR files)
+python -m leankeeper extract github          # PRs, reviews, issue comments (~3-5h)
+python -m leankeeper extract github-reviews  # Review comments inline only (~2h)
+python -m leankeeper extract git             # Commits and stats (~1h)
+python -m leankeeper extract zulip           # Zulip messages (~2-4h)
+python -m leankeeper extract all             # All above (excludes patches and PR files)
 
 # Heavy extractions (optional)
-python -m leankeeper extract github-files   # Files modified per PR (~10h, ~20K REST requests)
-python -m leankeeper extract git-patches    # Full diffs (10-50 GB)
+python -m leankeeper extract github-files    # Files modified per PR (~10h, ~20K REST requests)
+python -m leankeeper extract git-patches     # Full diffs (10-50 GB)
 python -m leankeeper extract git-patches --since 2024-01-01
 
 # Database inspection
@@ -55,6 +55,9 @@ python -m leankeeper stats
 # Export a table to JSONL
 python -m leankeeper export <table> <output_path>
 # Tables: commits, commit_files, pull_requests, pr_files, reviews, review_comments, issue_comments, zulip_channels, zulip_messages
+
+# Migrations
+python -m leankeeper.migrations.001_bigint_ids  # Integer → BigInteger pour IDs GitHub/Zulip
 ```
 
 ## Architecture
@@ -64,23 +67,25 @@ The project is currently in **Phase 1 (Dataset)** — building extractors to col
 ### Package structure (`leankeeper/`)
 
 - **`__main__.py`** — CLI entry point with three subcommands: `extract`, `stats`, `export`
-- **`config.py`** — All configuration: paths, API URLs/tokens, rate limits, extraction params
-- **`models/database.py`** — SQLAlchemy ORM models and `init_db()`. Defines all tables including future Lean-specific ones (declarations, imports, typeclasses) not yet populated
+- **`config.py`** — All configuration: paths, API URLs/tokens, rate limits, extraction params. Credentials loaded from environment variables.
+- **`models/database.py`** — SQLAlchemy ORM models and `init_db()`. Uses `BigInteger` for external IDs (GitHub, Zulip) to handle IDs > 2^31. Defines all tables including future Lean-specific ones (declarations, imports, typeclasses) not yet populated.
 - **`extractors/`** — One extractor class per data source, each taking a `session_factory` from `init_db()`:
-  - **`github.py`** (`GitHubExtractor`) — GraphQL for PRs/reviews/issue comments in bulk, REST for inline review comments (with `diff_hunk`) and per-PR file patches. Handles rate limiting with automatic retry.
+  - **`github.py`** (`GitHubExtractor`) — GraphQL for PRs/reviews/issue comments in bulk, REST for inline review comments (with `diff_hunk`) and per-PR file patches. Handles rate limiting and network errors with automatic retry (3 attempts with backoff). Detects Bors-merged PRs via `[Merged by Bors]` title prefix.
   - **`git.py`** (`GitExtractor`) — Clones mathlib4 as bare repo, extracts commits via `git log` parsing, stats via `--numstat`, optional full patches via `-p`. Uses subprocess.
   - **`zulip.py`** (`ZulipExtractor`) — Extracts channels and messages via Zulip REST API with backward pagination from newest.
+- **`migrations/`** — Database migration scripts (run individually as modules).
 
 ### Data flow
 
-All extractors follow the same pattern: `Extractor(session_factory)` → `extract_all()` → upsert into SQLite via SQLAlchemy sessions, committed in batches (`BATCH_SIZE=500`). Extractors are idempotent — they skip already-existing records.
+All extractors follow the same pattern: `Extractor(session_factory)` → `extract_all()` → upsert into PostgreSQL via SQLAlchemy sessions, committed in batches (`BATCH_SIZE=500`). Extractors are idempotent — re-running updates existing records (upsert).
 
 ### Training Data Sources
 
 All public and extractible via GitHub and Zulip APIs:
 - Mathlib Git repository (commits, diffs)
-- GitHub PRs with review comments (~20K+ merged PRs)
+- GitHub PRs with review comments (~36K PRs, ~20K+ merged via Bors)
 - Lean Zulip discussions on design decisions
+- Mathlib4 GitHub wiki (19 pages, cloned in `mathlib4.wiki/`)
 - Linter/CI results
 - Import dependency graph
 
