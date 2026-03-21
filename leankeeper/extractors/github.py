@@ -135,9 +135,13 @@ class GitHubExtractor:
         """REST request with automatic pagination."""
         url = f"{GITHUB_REST_URL}/repos/{GITHUB_REPO_OWNER}/{GITHUB_REPO_NAME}/{endpoint}"
         results = []
+        page = 0
+
+        server_errors = 0
 
         while url:
             self._request_count += 1
+            page += 1
 
             for attempt in range(3):
                 try:
@@ -158,11 +162,25 @@ class GitHubExtractor:
                 time.sleep(wait)
                 continue
 
+            if response.status_code >= 500:
+                server_errors += 1
+                if server_errors > 5:
+                    logger.error(f"Too many server errors ({server_errors}), aborting. {len(results)} items fetched so far.")
+                    break
+                wait = 10 * server_errors
+                logger.warning(f"Server error {response.status_code}, retrying in {wait}s... ({server_errors}/5)")
+                time.sleep(wait)
+                continue
+
+            server_errors = 0  # Reset on success
+
             response.raise_for_status()
             data = response.json()
 
             if isinstance(data, list):
                 results.extend(data)
+                if page % 10 == 0:
+                    logger.info(f"REST {endpoint}: page {page}, {len(results)} items fetched")
             else:
                 return data
 
@@ -285,46 +303,78 @@ class GitHubExtractor:
         """
         Extract all inline review comments via the REST API.
         This is the most valuable data: comments on specific code lines.
+        Uses `since` parameter to resume from the last extracted comment.
         """
-        logger.info("Extracting inline review comments via REST...")
-
-        comments = self._rest_get("pulls/comments", params={"per_page": 100, "sort": "created", "direction": "asc"})
-
-        count = 0
+        # Find the latest comment date to resume from
+        since = None
         with self.session_factory() as session:
-            for c in comments:
-                comment_id = c["id"]
-                if session.get(ReviewComment, comment_id):
-                    continue
+            from sqlalchemy import func
+            latest = session.query(func.max(ReviewComment.created_at)).scalar()
+            if latest:
+                since = latest.strftime("%Y-%m-%dT%H:%M:%SZ")
+                logger.info(f"Resuming review comments from {since}")
 
-                # Extract PR number from URL
-                pr_number = _extract_pr_number(c.get("pull_request_url", ""))
-                if not pr_number:
-                    continue
+        total_count = 0
 
-                session.add(ReviewComment(
-                    id=comment_id,
-                    pr_number=pr_number,
-                    review_id=c.get("pull_request_review_id"),
-                    author=c["user"]["login"] if c.get("user") else "[deleted]",
-                    body=c["body"],
-                    filepath=c.get("path"),
-                    line=c.get("line"),
-                    original_line=c.get("original_line"),
-                    diff_hunk=c.get("diff_hunk"),
-                    created_at=_parse_dt(c["created_at"]),
-                    updated_at=_parse_dt(c.get("updated_at")),
-                    in_reply_to_id=c.get("in_reply_to_id"),
-                ))
-                count += 1
+        while True:
+            params = {"per_page": 100, "sort": "created", "direction": "asc"}
+            if since:
+                params["since"] = since
 
-                if count % BATCH_SIZE == 0:
-                    session.commit()
-                    logger.info(f"Review comments: {count} inserted")
+            logger.info(f"Extracting inline review comments via REST{f' (since {since})' if since else ''}...")
+            comments = self._rest_get("pulls/comments", params=params)
 
-            session.commit()
+            if not comments:
+                break
 
-        logger.info(f"Review comments done: {count} comments")
+            count = 0
+            last_date = None
+            with self.session_factory() as session:
+                for c in comments:
+                    comment_id = c["id"]
+                    if session.get(ReviewComment, comment_id):
+                        last_date = c["created_at"]
+                        continue
+
+                    # Extract PR number from URL
+                    pr_number = _extract_pr_number(c.get("pull_request_url", ""))
+                    if not pr_number:
+                        continue
+
+                    session.add(ReviewComment(
+                        id=comment_id,
+                        pr_number=pr_number,
+                        review_id=c.get("pull_request_review_id"),
+                        author=c["user"]["login"] if c.get("user") else "[deleted]",
+                        body=c["body"],
+                        filepath=c.get("path"),
+                        line=c.get("line"),
+                        original_line=c.get("original_line"),
+                        diff_hunk=c.get("diff_hunk"),
+                        created_at=_parse_dt(c["created_at"]),
+                        updated_at=_parse_dt(c.get("updated_at")),
+                        in_reply_to_id=c.get("in_reply_to_id"),
+                    ))
+                    count += 1
+                    last_date = c["created_at"]
+
+                    if count % BATCH_SIZE == 0:
+                        session.commit()
+                        logger.info(f"Review comments: {total_count + count} inserted")
+
+                session.commit()
+
+            total_count += count
+            logger.info(f"Review comments batch done: {count} new, {total_count} total")
+
+            # If we got fewer items than expected or no new ones, we're done
+            if count == 0 or not last_date:
+                break
+
+            # Resume from the last comment date for next batch
+            since = last_date
+
+        logger.info(f"Review comments done: {total_count} new comments")
 
     # ──────────────────────────────────────────
     # Files modified per PR (REST)
