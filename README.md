@@ -1,97 +1,97 @@
-# LeanKeeper — Un agent IA natif pour Mathlib
+# LeanKeeper — A native AI agent for Mathlib
 
 ## Vision
 
-Créer un agent IA spécialisé, entraîné spécifiquement sur les conventions, la hiérarchie et la culture de [Mathlib](https://github.com/leanprover-community/mathlib4), capable de produire des contributions de qualité bibliothèque — pas juste des preuves qui compilent, mais du code qui passe la revue humaine.
+Build a specialized AI agent, trained specifically on the conventions, hierarchy and culture of [Mathlib](https://github.com/leanprover-community/mathlib4), capable of producing library-quality contributions — not just proofs that compile, but code that passes human review.
 
-## Contexte
+## Context
 
-### Lean et Mathlib
+### Lean and Mathlib
 
-- **Lean** est un proof assistant et langage de programmation développé par Leonardo de Moura (Lean FRO). Si ça compile, la preuve est correcte.
-- **Mathlib** est la bibliothèque communautaire de mathématiques formalisées en Lean 4 : ~210 000 théorèmes, ~100 000 définitions, ~2 millions de lignes de code, 500+ contributeurs sur 8 ans.
-- Mathlib est organisée comme un **DAG de dépendances** avec une **hiérarchie de typeclasses** (`Monoid → Group → Ring → Field`, `TopologicalSpace → MetricSpace → NormedSpace`…) permettant la réutilisation automatique des preuves.
+- **Lean** is a proof assistant and programming language developed by Leonardo de Moura (Lean FRO). If it compiles, the proof is correct.
+- **Mathlib** is the community library of formalized mathematics in Lean 4: ~210,000 theorems, ~100,000 definitions, ~2 million lines of code, 500+ contributors over 8 years.
+- Mathlib is organized as a **dependency DAG** with a **typeclass hierarchy** (`Monoid → Group → Ring → Field`, `TopologicalSpace → MetricSpace → NormedSpace`...) enabling automatic proof reuse.
 
-### L'IA et le theorem proving
+### AI and theorem proving
 
-| Projet | Organisation | Résultat clé |
-|--------|-------------|--------------|
-| **AlphaProof** | Google DeepMind | Médaille d'argent IMO 2024, or en 2025 |
-| **Aristotle** | xAI | Médaille d'or IMO 2025 (vérification formelle Lean) |
-| **Goedel-Prover-V2** | Princeton | Prouveur open-source le plus puissant, 90 % sur miniF2F |
-| **Gauss** | Math, Inc. | Formalisation du PNT fort en 3 semaines |
-| **HyperTree Proof Search** | Meta | 10 problèmes IMO résolus |
+| Project | Organization | Key result |
+|---------|-------------|------------|
+| **AlphaProof** | Google DeepMind | IMO 2024 silver medal, gold in 2025 |
+| **Aristotle** | xAI | IMO 2025 gold medal (Lean formal verification) |
+| **Goedel-Prover-V2** | Princeton | Most powerful open-source prover, 90% on miniF2F |
+| **Gauss** | Math, Inc. | Formalization of the strong PNT in 3 weeks |
+| **HyperTree Proof Search** | Meta | 10 IMO problems solved |
 
-Tous convergent vers la même architecture : **LLM pour l'intuition + Lean pour la vérification formelle**.
+All converge on the same architecture: **LLM for intuition + Lean for formal verification**.
 
-## Le problème : l'IA actuelle nuit à Mathlib
+## The problem: current AI harms Mathlib
 
-### Des dumps massifs, pas des contributions
+### Massive dumps, not contributions
 
-Les entreprises d'IA produisent du code Lean qui **compile** mais qui **n'est pas de qualité Mathlib** : définitions au mauvais niveau de généralité, conventions de nommage non respectées, pas d'API, code non maintenable, soumis en blocs monolithiques impossibles à reviewer.
+AI companies produce Lean code that **compiles** but is **not Mathlib quality**: definitions at the wrong level of generality, naming conventions not respected, no API, unmaintainable code, submitted in monolithic blocks impossible to review.
 
-### Conséquences concrètes (discussion Zulip, mars 2026)
+### Concrete consequences (Zulip discussion, March 2026)
 
-- **Sébastien Gouëzel** (maintainer) : *« Si Math, Inc. formalise le théorème de Mazur de manière crappy, personne ne voudra le refaire proprement, et on n'aura jamais Mazur dans Mathlib. »*
-- **Patrick Massot** (créateur du blueprint system) : *« Les entreprises d'IA vont bombarder cette zone pour la transformer en un désert radioactif. »*
-- Des étudiants en master ont perdu leur sujet de mémoire après le scoop de Gauss sur le sphere packing.
+- **Sebastien Gouezel** (maintainer): *"If Math, Inc. formalizes Mazur's theorem in a crappy way, nobody will want to redo it properly, and we'll never have Mazur in Mathlib."*
+- **Patrick Massot** (blueprint system creator): *"AI companies are going to bombard this area and turn it into a radioactive wasteland."*
+- Master's students lost their thesis topic after Gauss scooped the sphere packing result.
 
-### Le problème fondamental : les définitions
+### The fundamental problem: definitions
 
-**Une preuve qui compile n'est pas forcément « bonne ».** Les définitions peuvent être au mauvais niveau de généralité, mal intégrées à la hiérarchie de typeclasses, sans API standard, ou sémantiquement fausses — et Lean ne prévient pas. C'est ce jugement de design que l'IA actuelle ne sait pas faire.
+**A proof that compiles is not necessarily "good."** Definitions can be at the wrong level of generality, poorly integrated into the typeclass hierarchy, without standard API, or semantically wrong — and Lean won't warn you. This design judgment is what current AI cannot do.
 
-## La proposition : LeanKeeper
+## The proposition: LeanKeeper
 
-### Pourquoi c'est faisable
+### Why it's feasible
 
-- Mathlib fait ~2M de lignes (~50-70M tokens) — un fine-tuning trivial pour les modèles actuels.
-- Les conventions sont un **corpus fermé** et bien documenté : nommage, style, hiérarchie, patterns d'API.
-- Les linters automatiques encodent déjà une partie des règles.
-- Les reviews de PRs sont publiques : ~20 000+ PRs mergées sur GitHub avec commentaires.
+- Mathlib is ~2M lines (~50-70M tokens) — trivial fine-tuning for current models.
+- Conventions are a **closed corpus**, well documented: naming, style, hierarchy, API patterns.
+- Automated linters already encode some of the rules.
+- PR reviews are public: ~20,000+ merged PRs on GitHub with comments.
 
-### Le dataset d'entraînement
+### The training dataset
 
-| Source | Contenu | Valeur |
-|--------|---------|--------|
-| Dépôt Git | Commits, diffs | Le *quoi* (code final) |
-| PRs GitHub | Version initiale → commentaires → version finale | Le *pourquoi* (jugement de design) |
-| Zulip Lean | Discussions sur les choix de définitions | Le *raisonnement* derrière les décisions |
-| Linters / CI | Résultats automatiques | Les *règles* formalisées |
-| Import graph | Graphe de dépendances structuré | La *topologie* de la bibliothèque |
+| Source | Content | Value |
+|--------|---------|-------|
+| Git repository | Commits, diffs | The *what* (final code) |
+| GitHub PRs | Initial version → comments → final version | The *why* (design judgment) |
+| Lean Zulip | Discussions on definition choices | The *reasoning* behind decisions |
+| Linters / CI | Automated results | The formalized *rules* |
+| Import graph | Structured dependency graph | The *topology* of the library |
 
-Tout est public et extractible via les APIs GitHub et Zulip.
+Everything is public and extractable via GitHub and Zulip APIs.
 
-### Ce que LeanKeeper ferait
+### What LeanKeeper would do
 
-L'agent fonctionne comme un **bon contributeur Mathlib junior** :
+The agent works like a **good junior Mathlib contributor**:
 
-1. **Reçoit** un théorème à formaliser (en langage naturel ou informel).
-2. **Explore** la hiérarchie de typeclasses existante pour trouver le bon niveau de généralité.
-3. **Propose** une définition intégrée à la hiérarchie, avec l'API standard.
-4. **Écrit** la preuve avec les bonnes tactiques et le bon style.
-5. **Vérifie** le nommage selon les conventions Mathlib.
-6. **Soumet** une PR propre, ciblée (~200 lignes), prête pour la revue.
+1. **Receives** a theorem to formalize (in natural or informal language).
+2. **Explores** the existing typeclass hierarchy to find the right level of generality.
+3. **Proposes** a definition integrated into the hierarchy, with standard API.
+4. **Writes** the proof with the right tactics and style.
+5. **Checks** naming against Mathlib conventions.
+6. **Submits** a clean, focused PR (~200 lines), ready for review.
 
-### Métrique de succès
+### Success metric
 
-Pas « est-ce que ça compile » (trivial) mais **« est-ce que ça passe la revue Mathlib »** — les maintainers acceptent de merger sans modifications majeures.
+Not "does it compile" (trivial) but **"does it pass Mathlib review"** — maintainers accept to merge without major modifications.
 
-## Le goulot d'étranglement de Mathlib
+## Mathlib's bottleneck
 
-- **~300 PRs en attente**, délai médian ~2 semaines.
-- Les reviewers vérifient le **design**, pas la correction (Lean s'en charge).
-- Les reviewers sont majoritairement bénévoles, avec des profils rares (expert du domaine mathématique ET de Lean/Mathlib).
-- Financement récent : **10M$ de Alex Gerko** (XTX Markets) — 5M$ au Lean FRO, 5M$ à la Mathlib Initiative.
+- **~300 PRs pending**, median delay ~2 weeks.
+- Reviewers check **design**, not correctness (Lean handles that).
+- Reviewers are mostly volunteers, with rare profiles (expert in the mathematical domain AND in Lean/Mathlib).
+- Recent funding: **$10M from Alex Gerko** (XTX Markets) — $5M to Lean FRO, $5M to the Mathlib Initiative.
 
 
-## Références
+## References
 
 - [Mathlib GitHub](https://github.com/leanprover-community/mathlib4)
 - [Mathlib Initiative](https://mathlib-initiative.org/)
 - [Lean FRO](https://lean-lang.org/fro/)
-- [Discussion Zulip : « The role of AI companies in large formalisation projects »](https://leanprover.zulipchat.com/#narrow/channel/113488-general/topic/The.20role.20of.20AI.20companies.20in.20large.20formalisation.20projects)
+- [Zulip discussion: "The role of AI companies in large formalisation projects"](https://leanprover.zulipchat.com/#narrow/channel/113488-general/topic/The.20role.20of.20AI.20companies.20in.20large.20formalisation.20projects)
 - [Kevin Buzzard — Xena Project](https://xenaproject.wordpress.com/)
-- [AlphaProof (Nature, nov. 2025)](https://www.nature.com/articles/s41586-025-09833-y)
+- [AlphaProof (Nature, Nov. 2025)](https://www.nature.com/articles/s41586-025-09833-y)
 - [Aristotle (xAI)](https://arxiv.org/html/2510.01346v1)
 - [Gauss (Math, Inc.)](https://www.math.inc/gauss)
 - [Goedel-Prover-V2 (Princeton)](https://ai.princeton.edu/news/2025/princeton-researchers-unveil-improved-mathematical-theorem-prover-powered-ai)

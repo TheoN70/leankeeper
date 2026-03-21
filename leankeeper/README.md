@@ -1,86 +1,109 @@
-# LeanKeeper — Dataset Mathlib
+# LeanKeeper — Mathlib Dataset
 
-Extraction et structuration des données publiques du projet [Mathlib](https://github.com/leanprover-community/mathlib4) pour l'entraînement d'un agent IA spécialisé sur les conventions Mathlib.
+Extraction and structuring of public data from the [Mathlib](https://github.com/leanprover-community/mathlib4) project for training an AI agent specialized in Mathlib conventions.
 
-## Installation
+## Quickstart
+
+### 1. Install dependencies
 
 ```bash
+python -m venv venv
+source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-## Configuration
+### 2. Create the PostgreSQL database
 
-Éditer `config.py` :
-
-```python
-GITHUB_TOKEN = "ghp_..."       # Token GitHub (Settings > Developer settings > Personal access tokens)
-ZULIP_EMAIL = "you@email.com"  # Compte Zulip Lean (https://leanprover.zulipchat.com)
-ZULIP_API_KEY = "..."          # Clé API (Settings > Your bots)
+```bash
+createdb leankeeper
 ```
+
+### 3. Set environment variables
+
+```bash
+export DATABASE_URL="postgresql://user:pass@localhost/leankeeper"
+export GITHUB_READ_ONLY_TOKEN="ghp_..."        # GitHub token (Settings > Developer settings > Personal access tokens)
+export ZULIP_EMAIL="you@email.com"             # Lean Zulip account (https://leanprover.zulipchat.com)
+export ZULIP_API_KEY="..."                     # API key (Settings > Your bots)
+```
+
+### 4. Initialize the database and run your first extraction
+
+```bash
+# Tables are auto-created on first run. Verify with:
+python -m leankeeper stats
+
+# Start extracting (GitHub is the most useful source):
+python -m leankeeper extract github
+```
+
+The GitHub extraction takes ~3-5h and populates PRs, reviews, and issue comments. Extractors are idempotent — you can interrupt and re-run safely.
 
 ## Usage
 
 ```bash
-# Extraction GitHub (PRs, reviews, comments) — ~3-5h
+# GitHub extraction (PRs, reviews, comments) — ~3-5h
 python -m leankeeper extract github
 
-# Extraction reviews uniquement :
+# Review comments only
 python -m leankeeper extract github-reviews
 
-# Extraction Git (commits, stats) — ~1h
+# Git extraction (commits, stats) — ~1h
 python -m leankeeper extract git
 
-# Extraction Zulip (messages) — ~2-4h
+# Zulip extraction (messages) — ~2-4h
 python -m leankeeper extract zulip
 
-# Tout d'un coup (sauf patches et PR files)
+# All at once (except patches and PR files)
 python -m leankeeper extract all
 
-# Stats de la base
+# Database stats
 python -m leankeeper stats
 
-# Export d'une table en JSONL
+# Export a table to JSONL
 python -m leankeeper export review_comments data/review_comments.jsonl
 ```
 
-### Extractions optionnelles (volumineuses)
+### Optional extractions (heavy)
 
 ```bash
-# Fichiers modifiés par PR avec patches (~20K requêtes REST, ~10h)
+# Files modified per PR with patches (~20K REST requests, ~10h)
 python -m leankeeper extract github-files
 
-# Diffs Git complets (10-50 Go)
+# Full Git diffs (10-50 GB)
 python -m leankeeper extract git-patches
 
-# Diffs Git depuis une date
+# Git diffs since a date
 python -m leankeeper extract git-patches --since 2024-01-01
 ```
 
-## Schéma de la base
+## Database schema
 
-### Sources Git
-- **commits** — SHA, auteur, date, message, insertions/deletions
-- **commit_files** — fichiers modifiés par commit, avec patch optionnel
+See [`DB_ARCHITECTURE.md`](../DB_ARCHITECTURE.md) for full documentation.
 
-### Sources GitHub
-- **pull_requests** — titre, description, auteur, état, dates, branches
-- **pull_request_labels** — labels par PR
-- **pull_request_files** — fichiers modifiés par PR avec patches
-- **reviews** — reviews globales (approved/changes_requested/commented)
-- **review_comments** — commentaires inline sur le code *(le plus précieux)*
-- **issue_comments** — commentaires généraux sur les PRs
+### Git sources
+- **commits** — SHA, author, date, message, insertions/deletions
+- **commit_files** — files modified per commit, with optional patch
 
-### Sources Zulip
-- **zulip_channels** — channels (streams) extraits
-- **zulip_messages** — messages avec channel, topic, auteur, contenu markdown
+### GitHub sources
+- **pull_requests** — title, description, author, state, dates, branches
+- **pull_request_labels** — labels per PR
+- **pull_request_files** — files modified per PR with patches
+- **reviews** — top-level reviews (approved/changes_requested/commented)
+- **review_comments** — inline code comments *(most valuable)*
+- **issue_comments** — general PR conversation comments
 
-### Sources Lean *(à venir)*
-- **declarations** — théorèmes, définitions, instances, classes
-- **imports** — graphe de dépendances entre fichiers
-- **typeclass_instances** — instances de typeclasses
-- **typeclass_parents** — hiérarchie des typeclasses
+### Zulip sources
+- **zulip_channels** — extracted channels (streams)
+- **zulip_messages** — messages with channel, topic, sender, markdown content
 
-## Structure du projet
+### Lean sources *(planned)*
+- **declarations** — theorems, definitions, instances, classes
+- **imports** — file dependency graph
+- **typeclass_instances** — typeclass instances
+- **typeclass_parents** — typeclass hierarchy
+
+## Project structure
 
 ```
 leankeeper/
@@ -90,16 +113,15 @@ leankeeper/
 ├── requirements.txt
 ├── models/
 │   ├── __init__.py
-│   └── database.py      # Modèles SQLAlchemy
+│   └── database.py      # SQLAlchemy models
 ├── extractors/
 │   ├── __init__.py
-│   ├── github.py        # Extracteur GitHub (GraphQL + REST)
-│   ├── git.py           # Extracteur Git (commits, diffs)
-│   └── zulip.py         # Extracteur Zulip (messages)
-└── data/
-    └── leankeeper.db    # Base SQLite (générée)
+│   ├── github.py        # GitHub extractor (GraphQL + REST)
+│   ├── git.py           # Git extractor (commits, diffs)
+│   └── zulip.py         # Zulip extractor (messages)
+└── data/                # Generated data directory
 ```
 
-## Licence
+## License
 
-Apache 2.0 — aligné avec la licence de Mathlib.
+Apache 2.0 — aligned with the Mathlib license.
