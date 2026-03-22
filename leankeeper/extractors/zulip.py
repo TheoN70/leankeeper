@@ -76,10 +76,11 @@ class ZulipExtractor:
     # Messages
     # ──────────────────────────────────────────
 
-    def extract_messages(self, channel_name: str):
+    def extract_messages(self, channel_name: str, update_only: bool = False):
         """
         Extract all messages from a channel.
         Uses anchor to paginate backward from the most recent message.
+        In update mode, stops when hitting messages already in the database.
         """
         logger.info(f"Extracting messages from #{channel_name}...")
 
@@ -120,10 +121,12 @@ class ZulipExtractor:
             for m in new_messages:
                 seen_ids.add(m["id"])
 
+            already_exists_count = 0
             with self.session_factory() as session:
                 for m in new_messages:
                     msg_id = m["id"]
                     if session.get(ZulipMessage, msg_id):
+                        already_exists_count += 1
                         continue
 
                     session.add(ZulipMessage(
@@ -141,6 +144,11 @@ class ZulipExtractor:
 
             logger.info(f"#{channel_name}: {total_count} messages extracted")
 
+            # In update mode, stop when most messages in the batch already exist
+            if update_only and already_exists_count > len(new_messages) // 2:
+                logger.info(f"Update mode: reached existing messages in #{channel_name}, stopping")
+                break
+
             # Backward pagination
             oldest_id = min(m["id"] for m in new_messages)
             anchor = str(oldest_id)
@@ -154,13 +162,13 @@ class ZulipExtractor:
     # Orchestrator
     # ──────────────────────────────────────────
 
-    def extract_all(self):
+    def extract_all(self, update_only: bool = False):
         """Extract channels then all messages from configured channels."""
         self.extract_channels()
 
         total = 0
         for channel_name in ZULIP_CHANNELS:
-            count = self.extract_messages(channel_name)
+            count = self.extract_messages(channel_name, update_only=update_only)
             if count:
                 total += count
 

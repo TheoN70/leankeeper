@@ -44,7 +44,7 @@ query($owner: String!, $name: String!, $cursor: String) {
     pullRequests(
       first: 50
       after: $cursor
-      orderBy: {field: CREATED_AT, direction: DESC}
+      orderBy: {field: UPDATED_AT, direction: DESC}
     ) {
       pageInfo {
         hasNextPage
@@ -201,8 +201,19 @@ class GitHubExtractor:
     # PR extraction (GraphQL)
     # ──────────────────────────────────────────
 
-    def extract_pull_requests(self):
+    def extract_pull_requests(self, update_only: bool = False):
         """Extract all PRs with reviews and issue comments."""
+        # In update mode, find the latest updated_at to stop early
+        cutoff = None
+        if update_only:
+            with self.session_factory() as session:
+                from sqlalchemy import func
+                cutoff = session.query(func.max(PullRequest.updated_at)).scalar()
+            if cutoff:
+                logger.info(f"Update mode: fetching PRs updated after {cutoff.isoformat()}")
+            else:
+                logger.info("Update mode: no existing PRs, running full extraction")
+
         logger.info("Extracting pull requests via GraphQL...")
 
         cursor = None
@@ -227,6 +238,15 @@ class GitHubExtractor:
 
             total_extracted += len(nodes)
             logger.info(f"PRs: {total_extracted}/{total_count}")
+
+            # In update mode, stop when all PRs in this page are older than cutoff
+            if update_only and cutoff and nodes:
+                oldest_in_page = min(
+                    _parse_dt(n.get("updatedAt")) for n in nodes if n.get("updatedAt")
+                )
+                if oldest_in_page and oldest_in_page <= cutoff:
+                    logger.info(f"Update mode: reached already-seen PRs, stopping")
+                    break
 
             if not pr_data["pageInfo"]["hasNextPage"]:
                 break
@@ -336,15 +356,22 @@ class GitHubExtractor:
                         last_date = c["created_at"]
                         continue
 
-                    # Extract PR number from URL
+                    # Extract PR number from URL, skip if PR not in DB
                     pr_number = _extract_pr_number(c.get("pull_request_url", ""))
                     if not pr_number:
                         continue
+                    if not session.get(PullRequest, pr_number):
+                        continue
+
+                    # Only set review_id if the review exists in DB
+                    review_id = c.get("pull_request_review_id")
+                    if review_id and not session.get(Review, review_id):
+                        review_id = None
 
                     session.add(ReviewComment(
                         id=comment_id,
                         pr_number=pr_number,
-                        review_id=c.get("pull_request_review_id"),
+                        review_id=review_id,
                         author=c["user"]["login"] if c.get("user") else "[deleted]",
                         body=c["body"],
                         filepath=c.get("path"),
@@ -431,12 +458,13 @@ class GitHubExtractor:
     # Orchestrator
     # ──────────────────────────────────────────
 
-    def extract_all(self, include_pr_files: bool = False):
+    def extract_all(self, include_pr_files: bool = False, update_only: bool = False):
         """
         Full extraction.
         include_pr_files=True is slow (~20,000 REST requests) but provides patches.
+        update_only=True only fetches new/recently updated data.
         """
-        self.extract_pull_requests()
+        self.extract_pull_requests(update_only=update_only)
         self.extract_review_comments()
         if include_pr_files:
             self.extract_pr_files()

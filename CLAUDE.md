@@ -37,12 +37,16 @@ All credentials are loaded from environment variables (see `leankeeper/config.py
 All commands run from the repo root via `python -m leankeeper`:
 
 ```bash
-# Extraction
+# Full extraction (first run)
 python -m leankeeper extract github          # PRs, reviews, issue comments (~1h10)
-python -m leankeeper extract github-reviews  # Review comments inline only (~2h)
+python -m leankeeper extract github-reviews  # Review comments inline only (~2h30)
 python -m leankeeper extract git             # Commits and stats (~1h)
 python -m leankeeper extract zulip           # Zulip messages (~2-4h)
 python -m leankeeper extract all             # All above (excludes patches and PR files)
+
+# Incremental update (daily, only new/changed data)
+python -m leankeeper extract github --update
+python -m leankeeper extract all --update
 
 # Heavy extractions (optional)
 python -m leankeeper extract github-files    # Files modified per PR (~10h, ~20K REST requests)
@@ -81,7 +85,7 @@ PostgreSQL with SQLAlchemy ORM. External IDs (GitHub, Zulip) use `BigInteger` (6
 
 ### Data flow
 
-All extractors follow the same pattern: `Extractor(session_factory)` → `extract_all()` → upsert into PostgreSQL via SQLAlchemy sessions, committed in batches (`BATCH_SIZE=500`). Extractors are idempotent — re-running updates existing records (upsert).
+All extractors follow the same pattern: `Extractor(session_factory)` → `extract_all()` → upsert into PostgreSQL via SQLAlchemy sessions, committed in batches (`BATCH_SIZE=500`). Extractors are idempotent — re-running updates existing records (upsert). Use `--update` for incremental updates that only fetch new/changed data.
 
 ### Training Data Sources
 

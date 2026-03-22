@@ -42,20 +42,16 @@ The GitHub extraction takes ~1h10 and populates PRs, reviews, and issue comments
 ## Usage
 
 ```bash
-# GitHub extraction (PRs, reviews, comments) — ~1h10
-python -m leankeeper extract github
+# Full extraction (first run)
+python -m leankeeper extract github          # PRs, reviews, comments (~1h10)
+python -m leankeeper extract github-reviews  # Review comments inline only
+python -m leankeeper extract git             # Commits and stats (~1h)
+python -m leankeeper extract zulip           # Zulip messages (~2-4h)
+python -m leankeeper extract all             # All above (except patches and PR files)
 
-# Review comments only
-python -m leankeeper extract github-reviews
-
-# Git extraction (commits, stats) — ~1h
-python -m leankeeper extract git
-
-# Zulip extraction (messages) — ~2-4h
-python -m leankeeper extract zulip
-
-# All at once (except patches and PR files)
-python -m leankeeper extract all
+# Incremental update (daily, only new/changed data)
+python -m leankeeper extract github --update
+python -m leankeeper extract all --update
 
 # Database stats
 python -m leankeeper stats

@@ -55,16 +55,30 @@ class GitExtractor:
     # Commit extraction
     # ──────────────────────────────────────────
 
-    def extract_commits(self):
+    def extract_commits(self, update_only: bool = False):
         """Extract all commits with metadata."""
+        # In update mode, only fetch commits since the latest in DB
+        since = None
+        if update_only:
+            with self.session_factory() as session:
+                from sqlalchemy import func
+                latest = session.query(func.max(Commit.date)).scalar()
+                if latest:
+                    since = latest.strftime("%Y-%m-%d")
+                    logger.info(f"Update mode: fetching commits since {since}")
+
         logger.info("Extracting commits...")
 
         # Format: sha\x00author_name\x00author_email\x00date_iso\x00message
         SEP = "\x00"
         log_format = f"%H{SEP}%an{SEP}%ae{SEP}%aI{SEP}%s"
 
+        args = ["log", "--all", f"--format={log_format}"]
+        if since:
+            args.append(f"--since={since}")
+
         output = self._run_git(
-            "log", "--all", f"--format={log_format}",
+            *args,
             timeout=600,
         )
 
@@ -107,12 +121,24 @@ class GitExtractor:
     # Per-commit stats extraction (without patch)
     # ──────────────────────────────────────────
 
-    def extract_commit_stats(self):
+    def extract_commit_stats(self, update_only: bool = False):
         """Extract insertions/deletions per commit (--numstat)."""
-        logger.info("Extracting per-commit stats...")
+        since = None
+        if update_only:
+            with self.session_factory() as session:
+                from sqlalchemy import func
+                latest = session.query(func.max(Commit.date)).scalar()
+                if latest:
+                    since = latest.strftime("%Y-%m-%d")
+
+        logger.info(f"Extracting per-commit stats{f' (since {since})' if since else ''}...")
+
+        args = ["log", "--all", "--numstat", "--format=COMMIT:%H"]
+        if since:
+            args.append(f"--since={since}")
 
         output = self._run_git(
-            "log", "--all", "--numstat", "--format=COMMIT:%H",
+            *args,
             timeout=1800,
         )
 
@@ -262,17 +288,18 @@ class GitExtractor:
     # Orchestrator
     # ──────────────────────────────────────────
 
-    def extract_all(self, include_patches: bool = False, patches_since: str = None):
+    def extract_all(self, include_patches: bool = False, patches_since: str = None, update_only: bool = False):
         """
         Full extraction.
 
         Args:
             include_patches: if True, extract full diffs (large).
             patches_since: ISO date to limit patches.
+            update_only: if True, only fetch new commits since last extraction.
         """
         self.clone_or_update()
-        self.extract_commits()
-        self.extract_commit_stats()
+        self.extract_commits(update_only=update_only)
+        self.extract_commit_stats(update_only=update_only)
         if include_patches:
             self.extract_commit_patches(since=patches_since)
 

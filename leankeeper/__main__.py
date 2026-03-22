@@ -43,12 +43,13 @@ logger = logging.getLogger("leankeeper")
 def cmd_extract(args, session_factory):
     """Run extraction."""
     target = args.target
+    update = getattr(args, "update", False)
 
     if target in ("github", "all"):
         from leankeeper.extractors.github import GitHubExtractor
 
         extractor = GitHubExtractor(session_factory)
-        extractor.extract_all(include_pr_files=False)
+        extractor.extract_all(include_pr_files=False, update_only=update)
 
     if target == "github-reviews":
         from leankeeper.extractors.github import GitHubExtractor
@@ -66,7 +67,7 @@ def cmd_extract(args, session_factory):
         from leankeeper.extractors.git import GitExtractor
 
         extractor = GitExtractor(session_factory)
-        extractor.extract_all(include_patches=False)
+        extractor.extract_all(include_patches=False, update_only=update)
 
     if target == "git-patches":
         from leankeeper.extractors.git import GitExtractor
@@ -78,7 +79,7 @@ def cmd_extract(args, session_factory):
         from leankeeper.extractors.zulip import ZulipExtractor
 
         extractor = ZulipExtractor(session_factory)
-        extractor.extract_all()
+        extractor.extract_all(update_only=update)
 
 
 def cmd_stats(args, session_factory):
@@ -188,6 +189,7 @@ def main():
         help="Data source to extract",
     )
     extract_parser.add_argument("--since", help="ISO date to limit (git-patches)")
+    extract_parser.add_argument("--update", action="store_true", help="Incremental update (only fetch new/changed data)")
 
     # stats
     subparsers.add_parser("stats", help="Show database stats")
