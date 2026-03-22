@@ -69,8 +69,8 @@ class GitExtractor:
 
         logger.info("Extracting commits...")
 
-        # Format: sha\x00author_name\x00author_email\x00date_iso\x00message
-        SEP = "\x00"
+        # Use a separator unlikely to appear in commit messages
+        SEP = "\x1e"  # ASCII record separator
         log_format = f"%H{SEP}%an{SEP}%ae{SEP}%aI{SEP}%s"
 
         args = ["log", "--all", f"--format={log_format}"]

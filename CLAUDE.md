@@ -40,8 +40,8 @@ All commands run from the repo root via `python -m leankeeper`:
 # Full extraction (first run)
 python -m leankeeper extract github          # PRs, reviews, issue comments (~1h10)
 python -m leankeeper extract github-reviews  # Review comments inline only (~2h30)
-python -m leankeeper extract git             # Commits and stats (~1h)
-python -m leankeeper extract zulip           # Zulip messages (~2-4h)
+python -m leankeeper extract git             # Commits and stats (~10min)
+python -m leankeeper extract zulip           # Zulip messages (~1h)
 python -m leankeeper extract all             # All above (excludes patches and PR files)
 
 # Incremental update (daily, only new/changed data)
