@@ -210,6 +210,8 @@ class GitHubExtractor:
                 from sqlalchemy import func
                 cutoff = session.query(func.max(PullRequest.updated_at)).scalar()
             if cutoff:
+                if cutoff.tzinfo is None:
+                    cutoff = cutoff.replace(tzinfo=timezone.utc)
                 logger.info(f"Update mode: fetching PRs updated after {cutoff.isoformat()}")
             else:
                 logger.info("Update mode: no existing PRs, running full extraction")
