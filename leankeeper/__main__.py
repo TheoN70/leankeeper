@@ -185,6 +185,32 @@ def cmd_rag(args, session_factory):
         init_pgvector(session_factory)
         print("pgvector initialized. Ready to index.")
 
+    elif action == "backfill-dates":
+        from leankeeper.rag.store import SOURCE_DATE
+        from sqlalchemy import text as sa_text
+
+        date_joins = {
+            "review_comments": ("review_comments", "id", "created_at"),
+            "zulip_messages": ("zulip_messages", "id", "timestamp"),
+            "pull_requests": ("pull_requests", "number", "created_at"),
+            "reviews": ("reviews", "id", "submitted_at"),
+            "issue_comments": ("issue_comments", "id", "created_at"),
+        }
+
+        with session_factory() as session:
+            for source_table, (tbl, pk, date_col) in date_joins.items():
+                result = session.execute(sa_text(f"""
+                    UPDATE embeddings e
+                    SET created_at = s.{date_col}
+                    FROM {tbl} s
+                    WHERE e.source_table = :source_table
+                    AND e.source_id = CAST(s.{pk} AS TEXT)
+                    AND e.created_at IS NULL
+                """), {"source_table": source_table})
+                print(f"  {source_table}: {result.rowcount} dates backfilled")
+            session.commit()
+        print("Backfill done.")
+
     elif action == "index":
         from leankeeper.rag.store import index_table, SOURCE_MODELS
         table = args.table
@@ -310,6 +336,7 @@ def main():
     rag_sub = rag_parser.add_subparsers(dest="action")
 
     rag_sub.add_parser("init", help="Initialize pgvector extension and embeddings table")
+    rag_sub.add_parser("backfill-dates", help="Backfill created_at on existing embeddings")
 
     rag_index = rag_sub.add_parser("index", help="Index tables into embeddings")
     rag_index.add_argument("--table", help="Specific table to index (default: all)")

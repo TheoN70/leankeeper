@@ -112,18 +112,23 @@ class RAGEvaluator:
         if not actual:
             return {"pr_number": pr_number, "error": "No reviewer comments"}
 
+        # Get the PR creation date for temporal filtering
+        with self.session_factory() as session:
+            pr = session.get(PullRequest, pr_number)
+            pr_date = pr.created_at if pr else None
+
         # Truncate context if too long for the LLM
         if len(context) > 8000:
             context = context[:8000] + "\n... [truncated]"
 
-        # Run RAG reviewer (exclude this PR's data to prevent leakage)
+        # Run RAG reviewer (only use data from before the PR was created)
         rag_feedback = ask(
             self.session_factory,
             f"Review this Mathlib PR:\n\n{context}",
             mode="reviewer",
             limit=10,
             backend=backend,
-            exclude_pr=pr_number,
+            before_date=pr_date,
         )
 
         return {

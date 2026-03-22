@@ -46,6 +46,15 @@ SOURCE_PK = {
     "issue_comments": "id",
 }
 
+# Date column name per table (for temporal filtering)
+SOURCE_DATE = {
+    "review_comments": "created_at",
+    "zulip_messages": "timestamp",
+    "pull_requests": "created_at",
+    "reviews": "submitted_at",
+    "issue_comments": "created_at",
+}
+
 
 def init_pgvector(session_factory):
     """Create pgvector extension and embeddings table with vector column."""
@@ -75,6 +84,18 @@ def init_pgvector(session_factory):
             CREATE UNIQUE INDEX IF NOT EXISTS ix_embeddings_source
             ON embeddings (source_table, source_id)
         """))
+
+        # Add created_at column if missing (for temporal filtering in eval)
+        has_created_at = session.execute(text("""
+            SELECT column_name FROM information_schema.columns
+            WHERE table_name = 'embeddings' AND column_name = 'created_at'
+        """)).fetchone()
+
+        if not has_created_at:
+            session.execute(text("ALTER TABLE embeddings ADD COLUMN created_at TIMESTAMP"))
+            session.execute(text("CREATE INDEX IF NOT EXISTS ix_embeddings_created_at ON embeddings (created_at)"))
+            logger.info("Added created_at column to embeddings")
+
         session.commit()
     logger.info("pgvector initialized")
 
@@ -86,10 +107,11 @@ def index_table(session_factory, table_name: str, update_only: bool = False):
 
     model = SOURCE_MODELS[table_name]
     pk_col = SOURCE_PK[table_name]
+    date_col = SOURCE_DATE[table_name]
     text_builder = TEXT_BUILDERS[table_name]
     embedder = Embedder(EMBEDDING_MODEL)
 
-    # Phase 1: Read all rows (IDs + text) into memory
+    # Phase 1: Read all rows (IDs + text + date) into memory
     logger.info(f"Indexing {table_name}: reading rows...")
     rows_to_embed = []
 
@@ -117,7 +139,8 @@ def index_table(session_factory, table_name: str, update_only: bool = False):
             if len(row_text) > 2000:
                 row_text = row_text[:2000]
 
-            rows_to_embed.append((source_id, row_text))
+            row_date = getattr(row, date_col, None)
+            rows_to_embed.append((source_id, row_text, row_date))
 
     total = len(rows_to_embed)
     logger.info(f"Indexing {table_name}: {total} rows to embed")
@@ -131,9 +154,10 @@ def index_table(session_factory, table_name: str, update_only: bool = False):
         batch = rows_to_embed[i:i + RAG_BATCH_SIZE]
         batch_ids = [r[0] for r in batch]
         batch_texts = [r[1] for r in batch]
+        batch_dates = [r[2] for r in batch]
 
         with session_factory() as session:
-            _flush_batch(session, embedder, table_name, batch_texts, batch_ids)
+            _flush_batch(session, embedder, table_name, batch_texts, batch_ids, batch_dates)
 
         count += len(batch)
         if count % 5000 == 0 or count == total:
@@ -142,31 +166,33 @@ def index_table(session_factory, table_name: str, update_only: bool = False):
     logger.info(f"Indexing {table_name} done: {count} embedded")
 
 
-def _flush_batch(session, embedder, table_name, texts, ids):
+def _flush_batch(session, embedder, table_name, texts, ids, dates=None):
     """Embed and upsert a batch."""
     embeddings = embedder.embed(texts)
+    if dates is None:
+        dates = [None] * len(texts)
 
-    for source_id, txt, emb in zip(ids, texts, embeddings):
+    for source_id, txt, emb, dt in zip(ids, texts, embeddings, dates):
         emb_str = "[" + ",".join(str(x) for x in emb) + "]"
         session.execute(
             text("""
-                INSERT INTO embeddings (source_table, source_id, text, embedding)
-                VALUES (:table, :id, :text, :embedding)
+                INSERT INTO embeddings (source_table, source_id, text, embedding, created_at)
+                VALUES (:table, :id, :text, :embedding, :created_at)
                 ON CONFLICT (source_table, source_id)
-                DO UPDATE SET text = :text, embedding = :embedding
+                DO UPDATE SET text = :text, embedding = :embedding, created_at = :created_at
             """),
-            {"table": table_name, "id": source_id, "text": txt, "embedding": emb_str},
+            {"table": table_name, "id": source_id, "text": txt, "embedding": emb_str, "created_at": dt},
         )
     session.commit()
 
 
 def search(session_factory, query: str, source_tables: list[str] = None, limit: int = 10,
-           exclude_pr: int = None):
+           before_date=None):
     """Semantic search across embeddings.
 
     Args:
-        exclude_pr: If set, exclude review_comments and reviews from this PR number
-                    (used for evaluation to prevent data leakage).
+        before_date: If set, only return embeddings created before this date.
+                     Used for evaluation to prevent temporal data leakage.
     """
     embedder = Embedder(EMBEDDING_MODEL)
     query_emb = embedder.embed_one(query)
@@ -181,18 +207,9 @@ def search(session_factory, query: str, source_tables: list[str] = None, limit: 
         for i, t in enumerate(source_tables):
             params[f"t{i}"] = t
 
-    if exclude_pr is not None:
-        # Exclude review_comments and reviews belonging to this PR
-        # source_id is the comment/review ID, so we need a subquery
-        conditions.append("""
-            NOT (source_table = 'review_comments' AND source_id IN (
-                SELECT CAST(id AS TEXT) FROM review_comments WHERE pr_number = :exclude_pr
-            ))
-            AND NOT (source_table = 'reviews' AND source_id IN (
-                SELECT CAST(id AS TEXT) FROM reviews WHERE pr_number = :exclude_pr
-            ))
-        """)
-        params["exclude_pr"] = exclude_pr
+    if before_date is not None:
+        conditions.append("created_at < :before_date")
+        params["before_date"] = before_date
 
     where = "WHERE " + " AND ".join(conditions) if conditions else ""
 
