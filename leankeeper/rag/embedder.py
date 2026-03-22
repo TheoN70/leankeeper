@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("sentence_transformers").setLevel(logging.WARNING)
 logging.getLogger("transformers").setLevel(logging.WARNING)
+logging.getLogger("transformers.modeling_utils").setLevel(logging.ERROR)
 
 _model_cache = {}
 
