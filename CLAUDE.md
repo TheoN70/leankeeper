@@ -46,6 +46,8 @@ python -m leankeeper extract all             # All above (excludes patches and P
 
 # Incremental update (daily, only new/changed data)
 python -m leankeeper extract github --update
+
+# Overall update
 python -m leankeeper extract all --update
 
 # Heavy extractions (optional)
@@ -56,12 +58,12 @@ python -m leankeeper extract git-patches --since 2024-01-01
 # Database inspection
 python -m leankeeper stats
 
+# Check database size
+psql -d leankeeper -c "SELECT pg_size_pretty(pg_database_size('leankeeper'));"
+
 # Export a table to JSONL
 python -m leankeeper export <table> <output_path>
 # Tables: commits, commit_files, pull_requests, pr_files, reviews, review_comments, issue_comments, zulip_channels, zulip_messages
-
-# Migrations
-python -m leankeeper.migrations.001_bigint_ids  # Integer → BigInteger for GitHub/Zulip IDs
 ```
 
 ## Architecture
