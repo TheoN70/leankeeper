@@ -193,6 +193,25 @@ def search(session_factory, query: str, source_tables: list[str] = None, limit: 
     ]
 
 
+def delete(session_factory, source_table: str = None, source_id: str = None):
+    """Delete embeddings by source table and/or source ID."""
+    with session_factory() as session:
+        if source_table and source_id:
+            result = session.execute(
+                text("DELETE FROM embeddings WHERE source_table = :t AND source_id = :id"),
+                {"t": source_table, "id": source_id},
+            )
+        elif source_table:
+            result = session.execute(
+                text("DELETE FROM embeddings WHERE source_table = :t"),
+                {"t": source_table},
+            )
+        else:
+            result = session.execute(text("DELETE FROM embeddings"))
+        session.commit()
+        return result.rowcount
+
+
 def status(session_factory):
     """Return embedding counts per source table."""
     with session_factory() as session:

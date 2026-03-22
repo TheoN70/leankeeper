@@ -77,6 +77,9 @@ python -m leankeeper rag search "naming convention"     # Semantic search
 python -m leankeeper rag chat                           # Interactive RAG chat (contributor mode)
 python -m leankeeper rag chat --mode reviewer           # Reviewer mode
 python -m leankeeper rag chat --backend ollama          # Use local LLM
+python -m leankeeper rag delete --table zulip_messages   # Delete embeddings for a table
+python -m leankeeper rag delete --table reviews --id 42 # Delete a specific embedding
+python -m leankeeper rag delete                         # Delete all (with confirmation)
 python -m leankeeper rag status                         # Show embedding counts
 ```
 

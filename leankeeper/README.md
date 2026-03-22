@@ -79,6 +79,11 @@ python -m leankeeper rag chat                           # Contributor mode
 python -m leankeeper rag chat --mode reviewer           # Reviewer mode
 python -m leankeeper rag chat --backend ollama          # Use local LLM
 
+# Delete embeddings
+python -m leankeeper rag delete --table zulip_messages   # Delete all Zulip embeddings
+python -m leankeeper rag delete --table reviews --id 42  # Delete a specific one
+python -m leankeeper rag delete                          # Delete all (with confirmation)
+
 # Status
 python -m leankeeper rag status
 ```

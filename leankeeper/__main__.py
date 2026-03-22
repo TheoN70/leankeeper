@@ -229,6 +229,23 @@ def cmd_rag(args, session_factory):
             response = ask(session_factory, query, mode=mode, backend=backend)
             print(f"\n{response}\n")
 
+    elif action == "delete":
+        from leankeeper.rag.store import delete
+        table = args.table
+        source_id = getattr(args, "id", None)
+
+        if not table and not source_id:
+            confirm = input("Delete ALL embeddings? Type 'yes' to confirm: ")
+            if confirm != "yes":
+                print("Cancelled.")
+                return
+
+        count = delete(session_factory, source_table=table, source_id=source_id)
+        target = f"{table}" if table else "all tables"
+        if source_id:
+            target = f"{table}/{source_id}"
+        print(f"Deleted {count} embeddings from {target}")
+
     elif action == "status":
         from leankeeper.rag.store import status
         counts = status(session_factory)
@@ -287,6 +304,10 @@ def main():
     rag_chat = rag_sub.add_parser("chat", help="Interactive RAG chat")
     rag_chat.add_argument("--mode", choices=["contributor", "reviewer"], default="contributor", help="Chat mode")
     rag_chat.add_argument("--backend", choices=["claude", "openai", "ollama"], help="LLM backend override")
+
+    rag_delete = rag_sub.add_parser("delete", help="Delete embeddings")
+    rag_delete.add_argument("--table", help="Source table to delete (default: all)")
+    rag_delete.add_argument("--id", help="Specific source ID to delete")
 
     rag_sub.add_parser("status", help="Show embedding stats")
 
