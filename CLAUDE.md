@@ -47,11 +47,12 @@ python -m leankeeper extract git             # Commits and stats (~10min)
 python -m leankeeper extract zulip           # Zulip messages (~1h)
 python -m leankeeper extract all             # All above (excludes patches and PR files)
 
-# Incremental update (daily, only new/changed data)
-python -m leankeeper extract github --update
+# Full incremental update (extract + index, one command)
+python -m leankeeper update
 
-# Overall update
+# Or manually:
 python -m leankeeper extract all --update
+python -m leankeeper rag index --update
 
 # Heavy extractions (optional)
 python -m leankeeper extract github-files    # Files modified per PR (~10h, ~20K REST requests)

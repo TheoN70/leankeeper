@@ -40,6 +40,39 @@ logging.basicConfig(
 logger = logging.getLogger("leankeeper")
 
 
+def cmd_update(args, session_factory):
+    """Full incremental update: extract new data + index new embeddings."""
+    logger.info("Starting full update...")
+
+    # Step 1: Extract new data
+    from leankeeper.extractors.github import GitHubExtractor
+    from leankeeper.extractors.git import GitExtractor
+    from leankeeper.extractors.zulip import ZulipExtractor
+
+    logger.info("── Updating GitHub PRs ──")
+    extractor = GitHubExtractor(session_factory)
+    extractor.extract_pull_requests(update_only=True)
+
+    logger.info("── Updating review comments ──")
+    extractor.extract_review_comments()
+
+    logger.info("── Updating Git commits ──")
+    git = GitExtractor(session_factory)
+    git.extract_all(include_patches=False, update_only=True)
+
+    logger.info("── Updating Zulip messages ──")
+    zulip = ZulipExtractor(session_factory)
+    zulip.extract_all(update_only=True)
+
+    # Step 2: Index new embeddings
+    from leankeeper.rag.store import index_table, SOURCE_MODELS
+    logger.info("── Indexing new embeddings ──")
+    for table_name in SOURCE_MODELS:
+        index_table(session_factory, table_name, update_only=True)
+
+    logger.info("Full update done.")
+
+
 def cmd_extract(args, session_factory):
     """Run extraction."""
     target = args.target
@@ -327,6 +360,9 @@ def main():
     parser.add_argument("--db", default=DATABASE_URL, help="Database URL")
     subparsers = parser.add_subparsers(dest="command")
 
+    # update
+    subparsers.add_parser("update", help="Full incremental update (extract + index new data)")
+
     # extract
     extract_parser = subparsers.add_parser("extract", help="Extract data")
     extract_parser.add_argument(
@@ -392,7 +428,9 @@ def main():
 
     session_factory = init_db(args.db)
 
-    if args.command == "extract":
+    if args.command == "update":
+        cmd_update(args, session_factory)
+    elif args.command == "extract":
         cmd_extract(args, session_factory)
     elif args.command == "stats":
         cmd_stats(args, session_factory)
