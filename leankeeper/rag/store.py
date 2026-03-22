@@ -160,26 +160,47 @@ def _flush_batch(session, embedder, table_name, texts, ids):
     session.commit()
 
 
-def search(session_factory, query: str, source_tables: list[str] = None, limit: int = 10):
-    """Semantic search across embeddings."""
+def search(session_factory, query: str, source_tables: list[str] = None, limit: int = 10,
+           exclude_pr: int = None):
+    """Semantic search across embeddings.
+
+    Args:
+        exclude_pr: If set, exclude review_comments and reviews from this PR number
+                    (used for evaluation to prevent data leakage).
+    """
     embedder = Embedder(EMBEDDING_MODEL)
     query_emb = embedder.embed_one(query)
     emb_str = "[" + ",".join(str(x) for x in query_emb) + "]"
 
-    table_filter = ""
+    conditions = []
     params = {"embedding": emb_str, "limit": limit}
 
     if source_tables:
         placeholders = ", ".join(f":t{i}" for i in range(len(source_tables)))
-        table_filter = f"WHERE source_table IN ({placeholders})"
+        conditions.append(f"source_table IN ({placeholders})")
         for i, t in enumerate(source_tables):
             params[f"t{i}"] = t
+
+    if exclude_pr is not None:
+        # Exclude review_comments and reviews belonging to this PR
+        # source_id is the comment/review ID, so we need a subquery
+        conditions.append("""
+            NOT (source_table = 'review_comments' AND source_id IN (
+                SELECT CAST(id AS TEXT) FROM review_comments WHERE pr_number = :exclude_pr
+            ))
+            AND NOT (source_table = 'reviews' AND source_id IN (
+                SELECT CAST(id AS TEXT) FROM reviews WHERE pr_number = :exclude_pr
+            ))
+        """)
+        params["exclude_pr"] = exclude_pr
+
+    where = "WHERE " + " AND ".join(conditions) if conditions else ""
 
     sql = f"""
         SELECT source_table, source_id, text,
                1 - (embedding <=> CAST(:embedding AS vector)) AS similarity
         FROM embeddings
-        {table_filter}
+        {where}
         ORDER BY embedding <=> CAST(:embedding AS vector)
         LIMIT :limit
     """

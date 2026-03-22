@@ -246,6 +246,25 @@ def cmd_rag(args, session_factory):
             target = f"{table}/{source_id}"
         print(f"Deleted {count} embeddings from {target}")
 
+    elif action == "eval":
+        from leankeeper.rag.eval import RAGEvaluator
+        evaluator = RAGEvaluator(session_factory)
+
+        if args.pr:
+            pr_numbers = [args.pr]
+        else:
+            pr_numbers = evaluator.select_test_prs(limit=args.limit)
+
+        if not pr_numbers:
+            print("No eligible PRs found. Run 'extract github-files' first.")
+            return
+
+        results = evaluator.run_batch(pr_numbers, backend=args.backend)
+        evaluator.report(results)
+
+        if args.export:
+            evaluator.export(results, args.export)
+
     elif action == "status":
         from leankeeper.rag.store import status
         counts = status(session_factory)
@@ -304,6 +323,12 @@ def main():
     rag_chat = rag_sub.add_parser("chat", help="Interactive RAG chat")
     rag_chat.add_argument("--mode", choices=["contributor", "reviewer"], default="contributor", help="Chat mode")
     rag_chat.add_argument("--backend", choices=["claude", "openai", "ollama"], help="LLM backend override")
+
+    rag_eval = rag_sub.add_parser("eval", help="Evaluate RAG on already-reviewed PRs")
+    rag_eval.add_argument("--limit", type=int, default=30, help="Number of PRs to evaluate")
+    rag_eval.add_argument("--pr", type=int, help="Evaluate a specific PR number")
+    rag_eval.add_argument("--backend", choices=["claude", "openai", "ollama"], help="LLM backend override")
+    rag_eval.add_argument("--export", help="Export results to JSONL file")
 
     rag_delete = rag_sub.add_parser("delete", help="Delete embeddings")
     rag_delete.add_argument("--table", help="Source table to delete (default: all)")

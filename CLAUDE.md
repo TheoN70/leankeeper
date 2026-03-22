@@ -85,7 +85,7 @@ python -m leankeeper rag status                         # Show embedding counts
 
 ## Architecture
 
-The project has completed **Phase 1 (Dataset)** and is now in **Phase 1.5 (RAG)** — a retrieval-augmented generation system that leverages the extracted data to assist contributors and reviewers.
+The project has completed **Phase 1 (Dataset)** and is now in **Phase 2 (RAG + Conventions)** — a retrieval-augmented generation system that leverages the extracted data to assist contributors and reviewers.
 
 ### Package structure (`leankeeper/`)
 

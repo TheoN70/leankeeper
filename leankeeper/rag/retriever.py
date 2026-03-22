@@ -22,7 +22,8 @@ def _format_context(results: list[dict]) -> str:
     return "\n\n".join(parts)
 
 
-def ask(session_factory, query: str, mode: str = "contributor", limit: int = 10, backend: str = None) -> str:
+def ask(session_factory, query: str, mode: str = "contributor", limit: int = 10,
+        backend: str = None, exclude_pr: int = None) -> str:
     """
     Full RAG pipeline: retrieve context, build prompt, generate response.
 
@@ -31,6 +32,7 @@ def ask(session_factory, query: str, mode: str = "contributor", limit: int = 10,
         mode: "contributor" or "reviewer".
         limit: Number of similar items to retrieve.
         backend: LLM backend override (claude, openai, ollama).
+        exclude_pr: Exclude data from this PR number (for evaluation).
     """
     # Retrieve relevant context
     if mode == "reviewer":
@@ -38,7 +40,8 @@ def ask(session_factory, query: str, mode: str = "contributor", limit: int = 10,
     else:
         sources = ["review_comments", "zulip_messages", "pull_requests"]
 
-    results = store.search(session_factory, query, source_tables=sources, limit=limit)
+    results = store.search(session_factory, query, source_tables=sources, limit=limit,
+                           exclude_pr=exclude_pr)
 
     if not results:
         logger.warning("No relevant context found in embeddings")
