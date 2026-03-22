@@ -23,7 +23,7 @@ The core metric is: **"does it pass Mathlib review?"**, not "does it compile?".
 pip install -r leankeeper/requirements.txt
 ```
 
-Dependencies: `sqlalchemy>=2.0`, `requests>=2.31`.
+Dependencies: `sqlalchemy>=2.0`, `requests>=2.31`, `sentence-transformers>=2.2.2`, `pgvector>=0.2.4`, `anthropic>=0.40`.
 
 ### Configuration
 
@@ -31,6 +31,9 @@ All credentials are loaded from environment variables (see `leankeeper/config.py
 - `DATABASE_URL` — PostgreSQL connection string (required)
 - `GITHUB_READ_ONLY_TOKEN` — GitHub personal access token
 - `ZULIP_EMAIL` / `ZULIP_API_KEY` — Zulip account credentials
+- `ANTHROPIC_API_KEY` — For RAG chat with Claude (default LLM backend)
+- `LLM_BACKEND` — `claude` (default), `openai`, or `ollama`
+- `EMBEDDING_MODEL` — Sentence-transformers model (default: `all-MiniLM-L6-v2`)
 
 ### CLI Commands
 
@@ -64,15 +67,26 @@ psql -d leankeeper -c "SELECT pg_size_pretty(pg_database_size('leankeeper'));"
 # Export a table to JSONL
 python -m leankeeper export <table> <output_path>
 # Tables: commits, commit_files, pull_requests, pr_files, reviews, review_comments, issue_comments, zulip_channels, zulip_messages
+
+# RAG
+python -m leankeeper rag init                           # Initialize pgvector extension
+python -m leankeeper rag index                          # Index all tables (~1h on CPU)
+python -m leankeeper rag index --table review_comments  # Index specific table (~30min)
+python -m leankeeper rag index --update                 # Only index new rows
+python -m leankeeper rag search "naming convention"     # Semantic search
+python -m leankeeper rag chat                           # Interactive RAG chat (contributor mode)
+python -m leankeeper rag chat --mode reviewer           # Reviewer mode
+python -m leankeeper rag chat --backend ollama          # Use local LLM
+python -m leankeeper rag status                         # Show embedding counts
 ```
 
 ## Architecture
 
-The project is currently in **Phase 1 (Dataset)** — building extractors to collect training data from Mathlib's public sources.
+The project has completed **Phase 1 (Dataset)** and is now in **Phase 1.5 (RAG)** — a retrieval-augmented generation system that leverages the extracted data to assist contributors and reviewers.
 
 ### Package structure (`leankeeper/`)
 
-- **`__main__.py`** — CLI entry point with three subcommands: `extract`, `stats`, `export`
+- **`__main__.py`** — CLI entry point with subcommands: `extract`, `stats`, `export`, `rag`
 - **`config.py`** — All configuration: paths, API URLs/tokens, rate limits, extraction params. Credentials loaded from environment variables.
 - **`models/database.py`** — SQLAlchemy ORM models and `init_db()`. Uses `BigInteger` for external IDs (GitHub, Zulip) to handle IDs > 2^31. Defines all tables including future Lean-specific ones (declarations, imports, typeclasses) not yet populated.
 - **`extractors/`** — One extractor class per data source, each taking a `session_factory` from `init_db()`:
@@ -80,6 +94,12 @@ The project is currently in **Phase 1 (Dataset)** — building extractors to col
   - **`git.py`** (`GitExtractor`) — Clones mathlib4 as bare repo, extracts commits via `git log` parsing, stats via `--numstat`, optional full patches via `-p`. Uses subprocess.
   - **`zulip.py`** (`ZulipExtractor`) — Extracts channels and messages via Zulip REST API with backward pagination from newest.
 - **`migrations/`** — Database migration scripts (run individually as modules).
+- **`rag/`** — Retrieval-Augmented Generation system:
+  - **`embedder.py`** — Local embedding generation using sentence-transformers (`all-MiniLM-L6-v2`)
+  - **`store.py`** — pgvector operations: indexing, semantic search, status. Embeddings stored in a separate `embeddings` table.
+  - **`llm.py`** — Pluggable LLM backends: Claude (default), OpenAI, Ollama (local)
+  - **`retriever.py`** — High-level RAG pipeline: retrieve context → build prompt → generate response
+  - **`prompt.py`** — System prompts for contributor and reviewer modes
 
 ### Database
 

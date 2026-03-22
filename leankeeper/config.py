@@ -77,3 +77,18 @@ BATCH_SIZE = 500
 
 # Logs
 LOG_LEVEL = "INFO"
+
+# ──────────────────────────────────────────────
+# RAG
+# ──────────────────────────────────────────────
+
+EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "all-MiniLM-L6-v2")
+VECTOR_DIMENSION = int(os.getenv("VECTOR_DIMENSION", "384"))
+RAG_BATCH_SIZE = int(os.getenv("RAG_BATCH_SIZE", "256"))
+
+# LLM backend: claude, openai, ollama
+LLM_BACKEND = os.getenv("LLM_BACKEND", "claude")
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3")

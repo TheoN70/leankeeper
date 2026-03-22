@@ -60,6 +60,29 @@ python -m leankeeper stats
 python -m leankeeper export review_comments data/review_comments.jsonl
 ```
 
+### RAG (Retrieval-Augmented Generation)
+
+```bash
+# Setup (requires postgresql-16-pgvector system package)
+python -m leankeeper rag init
+
+# Index data into embeddings (~30min per 150K rows on CPU)
+python -m leankeeper rag index                          # All tables
+python -m leankeeper rag index --table review_comments  # Specific table
+python -m leankeeper rag index --update                 # Only new rows
+
+# Semantic search
+python -m leankeeper rag search "naming convention for CommMonoid"
+
+# Interactive chat (requires ANTHROPIC_API_KEY)
+python -m leankeeper rag chat                           # Contributor mode
+python -m leankeeper rag chat --mode reviewer           # Reviewer mode
+python -m leankeeper rag chat --backend ollama          # Use local LLM
+
+# Status
+python -m leankeeper rag status
+```
+
 ### Optional extractions (heavy)
 
 ```bash
@@ -115,6 +138,13 @@ leankeeper/
 │   ├── github.py        # GitHub extractor (GraphQL + REST)
 │   ├── git.py           # Git extractor (commits, diffs)
 │   └── zulip.py         # Zulip extractor (messages)
+├── rag/
+│   ├── __init__.py
+│   ├── embedder.py      # Local embeddings (sentence-transformers)
+│   ├── store.py         # pgvector indexing and search
+│   ├── llm.py           # Pluggable LLM backends (Claude, OpenAI, Ollama)
+│   ├── retriever.py     # RAG pipeline (retrieve + generate)
+│   └── prompt.py        # System prompts (contributor/reviewer modes)
 └── data/                # Generated data directory
 ```
 

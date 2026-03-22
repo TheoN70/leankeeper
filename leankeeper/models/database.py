@@ -297,6 +297,14 @@ class TypeclassParent(Base):
 
 
 # ──────────────────────────────────────────────
+# RAG — Embeddings
+# ──────────────────────────────────────────────
+# The embeddings table is managed by `rag init` (not by create_all),
+# because it uses pgvector's vector type which requires the extension.
+# See leankeeper/rag/store.py for the table definition.
+
+
+# ──────────────────────────────────────────────
 # Database setup
 # ──────────────────────────────────────────────
 

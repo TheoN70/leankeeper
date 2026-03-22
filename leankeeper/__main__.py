@@ -176,6 +176,76 @@ def cmd_export(args, session_factory):
     logger.info(f"Export done: {count} rows to {output_path}")
 
 
+def cmd_rag(args, session_factory):
+    """RAG commands."""
+    action = args.action
+
+    if action == "init":
+        from leankeeper.rag.store import init_pgvector
+        init_pgvector(session_factory)
+        print("pgvector initialized. Ready to index.")
+
+    elif action == "index":
+        from leankeeper.rag.store import index_table, SOURCE_MODELS
+        table = args.table
+        update = args.update
+
+        if table:
+            index_table(session_factory, table, update_only=update)
+        else:
+            for t in SOURCE_MODELS:
+                index_table(session_factory, t, update_only=update)
+
+    elif action == "search":
+        from leankeeper.rag.store import search
+        query = " ".join(args.query)
+        tables = [args.type] if args.type else None
+        results = search(session_factory, query, source_tables=tables, limit=args.limit)
+
+        for r in results:
+            print(f"\n{'─' * 60}")
+            print(f"[{r['source_table']}] similarity: {r['similarity']}")
+            print(r["text"][:500])
+        print()
+
+    elif action == "chat":
+        from leankeeper.rag.retriever import ask
+        mode = args.mode
+        backend = args.backend
+        print(f"LeanKeeper RAG — {mode} mode (type 'quit' to exit)\n")
+
+        while True:
+            try:
+                query = input(">>> ")
+            except (EOFError, KeyboardInterrupt):
+                print()
+                break
+
+            if query.strip().lower() in ("quit", "exit", "q"):
+                break
+            if not query.strip():
+                continue
+
+            response = ask(session_factory, query, mode=mode, backend=backend)
+            print(f"\n{response}\n")
+
+    elif action == "status":
+        from leankeeper.rag.store import status
+        counts = status(session_factory)
+
+        if not counts:
+            print("No embeddings yet. Run: python -m leankeeper rag init && python -m leankeeper rag index")
+            return
+
+        print("\n── RAG Embeddings ──")
+        total = 0
+        for table, count in sorted(counts.items()):
+            print(f"  {table}: {count}")
+            total += count
+        print(f"  Total: {total}")
+        print()
+
+
 def main():
     parser = argparse.ArgumentParser(description="LeanKeeper — Mathlib Dataset")
     parser.add_argument("--db", default=DATABASE_URL, help="Database URL")
@@ -199,6 +269,27 @@ def main():
     export_parser.add_argument("table", help="Table name")
     export_parser.add_argument("output", help="Output file path")
 
+    # rag
+    rag_parser = subparsers.add_parser("rag", help="RAG operations")
+    rag_sub = rag_parser.add_subparsers(dest="action")
+
+    rag_sub.add_parser("init", help="Initialize pgvector extension and embeddings table")
+
+    rag_index = rag_sub.add_parser("index", help="Index tables into embeddings")
+    rag_index.add_argument("--table", help="Specific table to index (default: all)")
+    rag_index.add_argument("--update", action="store_true", help="Only index new rows")
+
+    rag_search = rag_sub.add_parser("search", help="Semantic search")
+    rag_search.add_argument("query", nargs="+", help="Search query")
+    rag_search.add_argument("--type", help="Filter by source table")
+    rag_search.add_argument("--limit", type=int, default=5, help="Number of results")
+
+    rag_chat = rag_sub.add_parser("chat", help="Interactive RAG chat")
+    rag_chat.add_argument("--mode", choices=["contributor", "reviewer"], default="contributor", help="Chat mode")
+    rag_chat.add_argument("--backend", choices=["claude", "openai", "ollama"], help="LLM backend override")
+
+    rag_sub.add_parser("status", help="Show embedding stats")
+
     args = parser.parse_args()
 
     if not args.command:
@@ -213,6 +304,11 @@ def main():
         cmd_stats(args, session_factory)
     elif args.command == "export":
         cmd_export(args, session_factory)
+    elif args.command == "rag":
+        if not args.action:
+            rag_parser.print_help()
+            sys.exit(1)
+        cmd_rag(args, session_factory)
 
 
 if __name__ == "__main__":
