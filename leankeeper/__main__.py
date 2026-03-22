@@ -234,6 +234,20 @@ def cmd_rag(args, session_factory):
             print(r["text"][:500])
         print()
 
+    elif action == "context":
+        from leankeeper.rag.retriever import build_context_md
+        query = " ".join(args.query)
+        include_project = not args.no_project
+        output = build_context_md(session_factory, query, mode=args.mode,
+                                  limit=args.limit, include_project=include_project)
+
+        if args.output:
+            with open(args.output, "w", encoding="utf-8") as f:
+                f.write(output)
+            print(f"Context written to {args.output}")
+        else:
+            print(output)
+
     elif action == "chat":
         from leankeeper.rag.retriever import ask
         mode = args.mode
@@ -346,6 +360,13 @@ def main():
     rag_search.add_argument("query", nargs="+", help="Search query")
     rag_search.add_argument("--type", help="Filter by source table")
     rag_search.add_argument("--limit", type=int, default=5, help="Number of results")
+
+    rag_context = rag_sub.add_parser("context", help="Generate RAG context as markdown")
+    rag_context.add_argument("query", nargs="+", help="Query")
+    rag_context.add_argument("--mode", choices=["contributor", "reviewer"], default="contributor", help="Mode")
+    rag_context.add_argument("--limit", type=int, default=10, help="Number of examples")
+    rag_context.add_argument("--no-project", action="store_true", help="Exclude project context (conventions, wiki)")
+    rag_context.add_argument("--output", "-o", help="Output file (default: stdout)")
 
     rag_chat = rag_sub.add_parser("chat", help="Interactive RAG chat")
     rag_chat.add_argument("--mode", choices=["contributor", "reviewer"], default="contributor", help="Chat mode")

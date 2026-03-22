@@ -59,3 +59,54 @@ def ask(session_factory, query: str, mode: str = "contributor", limit: int = 10,
     llm = get_llm(backend)
     logger.info(f"Generating response with {llm.__class__.__name__}...")
     return llm.generate(system, query)
+
+
+def build_context_md(session_factory, query: str, mode: str = "contributor",
+                     limit: int = 10, include_project: bool = True) -> str:
+    """
+    Build a markdown context file for use with Claude Code or other tools.
+
+    Args:
+        query: The user's question.
+        mode: "contributor" or "reviewer".
+        limit: Number of similar items to retrieve.
+        include_project: If True, include project context (conventions, wiki).
+    """
+    # Retrieve relevant context
+    if mode == "reviewer":
+        sources = ["review_comments", "reviews"]
+    else:
+        sources = ["review_comments", "zulip_messages", "pull_requests"]
+
+    results = store.search(session_factory, query, source_tables=sources, limit=limit)
+
+    # Build system prompt
+    if mode == "reviewer":
+        system = build_reviewer_prompt(_format_context(results) if results else "(No examples found.)")
+    else:
+        system = build_contributor_prompt(_format_context(results) if results else "(No examples found.)")
+
+    parts = [f"# LeanKeeper RAG Context\n"]
+    parts.append(f"**Mode:** {mode}")
+    parts.append(f"**Query:** {query}\n")
+
+    if include_project:
+        parts.append("## Project Context\n")
+        parts.append("This is a contribution to [Mathlib](https://github.com/leanprover-community/mathlib4), ")
+        parts.append("the community library of formalized mathematics in Lean 4.\n")
+        # Include wiki conventions if available
+        import os
+        wiki_conventions = os.path.join(os.path.dirname(__file__), "..", "..", "wiki", "Mathlib-Conventions.md")
+        if os.path.exists(wiki_conventions):
+            with open(wiki_conventions, "r") as f:
+                parts.append(f.read())
+            parts.append("")
+
+    parts.append("## System Prompt\n")
+    parts.append(system)
+    parts.append("")
+
+    parts.append("## User Query\n")
+    parts.append(query)
+
+    return "\n".join(parts)

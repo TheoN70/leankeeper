@@ -74,6 +74,8 @@ python -m leankeeper rag index                          # Index all tables (~1h 
 python -m leankeeper rag index --table review_comments  # Index specific table (~30min)
 python -m leankeeper rag index --update                 # Only index new rows
 python -m leankeeper rag search "naming convention"     # Semantic search
+python -m leankeeper rag context "my query" -o ctx.md   # Generate context for Claude Code
+python -m leankeeper rag context "query" --no-project   # Without project conventions
 python -m leankeeper rag chat                           # Interactive RAG chat (contributor mode)
 python -m leankeeper rag chat --mode reviewer           # Reviewer mode
 python -m leankeeper rag chat --backend ollama          # Use local LLM

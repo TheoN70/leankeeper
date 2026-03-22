@@ -74,6 +74,10 @@ python -m leankeeper rag index --update                 # Only new rows
 # Semantic search
 python -m leankeeper rag search "naming convention for CommMonoid"
 
+# Generate context for Claude Code (no API cost)
+python -m leankeeper rag context "my query" -o rag_context.md
+python -m leankeeper rag context "my query" --no-project  # Without project conventions
+
 # Interactive chat (requires ANTHROPIC_API_KEY)
 python -m leankeeper rag chat                           # Contributor mode
 python -m leankeeper rag chat --mode reviewer           # Reviewer mode
