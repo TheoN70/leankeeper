@@ -47,6 +47,7 @@ python -m leankeeper extract github          # PRs, reviews, comments (~1h10)
 python -m leankeeper extract github-reviews  # Review comments inline only
 python -m leankeeper extract git             # Commits and stats (~10min)
 python -m leankeeper extract zulip           # Zulip messages (~1h)
+python -m leankeeper extract lean             # Lean declarations (~4min)
 python -m leankeeper extract all             # All above (except patches and PR files)
 
 # Full incremental update (extract + index, one command)
@@ -94,7 +95,7 @@ python -m leankeeper rag status
 ### Optional extractions (heavy)
 
 ```bash
-# Files modified per PR with patches (~20K REST requests, ~10h)
+# Files modified per PR with patches (~20K REST requests, ~15h)
 python -m leankeeper extract github-files
 
 # Full Git diffs (10-50 GB)
@@ -145,7 +146,8 @@ leankeeper/
 │   ├── __init__.py
 │   ├── github.py        # GitHub extractor (GraphQL + REST)
 │   ├── git.py           # Git extractor (commits, diffs)
-│   └── zulip.py         # Zulip extractor (messages)
+│   ├── zulip.py         # Zulip extractor (messages)
+│   └── lean.py          # Lean declaration extractor (from bare repo)
 ├── rag/
 │   ├── __init__.py
 │   ├── embedder.py      # Local embeddings (sentence-transformers)

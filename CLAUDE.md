@@ -55,7 +55,8 @@ python -m leankeeper extract all --update
 python -m leankeeper rag index --update
 
 # Heavy extractions (optional)
-python -m leankeeper extract github-files    # Files modified per PR (~10h, ~20K REST requests)
+python -m leankeeper extract lean             # Lean declarations from bare repo (~4min)
+python -m leankeeper extract github-files    # Files modified per PR (~15h, ~20K REST requests)
 python -m leankeeper extract git-patches     # Full diffs (10-50 GB)
 python -m leankeeper extract git-patches --since 2024-01-01
 
@@ -101,6 +102,7 @@ The project has completed **Phase 1 (Dataset)** and is now in **Phase 2 (RAG + C
   - **`github.py`** (`GitHubExtractor`) — GraphQL for PRs/reviews/issue comments in bulk, REST for inline review comments (with `diff_hunk`) and per-PR file patches. Handles rate limiting and network errors with automatic retry (3 attempts with backoff). Detects Bors-merged PRs via `[Merged by Bors]` title prefix.
   - **`git.py`** (`GitExtractor`) — Clones mathlib4 as bare repo, extracts commits via `git log` parsing, stats via `--numstat`, optional full patches via `-p`. Uses subprocess.
   - **`zulip.py`** (`ZulipExtractor`) — Extracts channels and messages via Zulip REST API with backward pagination from newest.
+  - **`lean.py`** (`LeanExtractor`) — Parses Lean 4 source files from the bare mathlib4 repo to extract declarations (theorems, definitions, lemmas, instances, classes, structures) with type signatures and docstrings. Regex-based parsing, ~215K declarations in ~4 min.
 - **`migrations/`** — Database migration scripts (run individually as modules).
 - **`rag/`** — Retrieval-Augmented Generation system:
   - **`embedder.py`** — Local embedding generation using sentence-transformers (`all-MiniLM-L6-v2`)

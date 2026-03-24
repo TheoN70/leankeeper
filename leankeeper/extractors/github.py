@@ -131,8 +131,8 @@ class GitHubExtractor:
 
             response.raise_for_status()
 
-    def _rest_get(self, endpoint: str, params: dict = None) -> list | dict:
-        """REST request with automatic pagination."""
+    def _rest_get(self, endpoint: str, params: dict = None, max_pages: int = 0) -> list | dict:
+        """REST request with automatic pagination. max_pages=0 means unlimited."""
         url = f"{GITHUB_REST_URL}/repos/{GITHUB_REPO_OWNER}/{GITHUB_REPO_NAME}/{endpoint}"
         results = []
         page = 0
@@ -186,6 +186,10 @@ class GitHubExtractor:
 
             # Pagination via Link header
             url = None
+            if max_pages and page >= max_pages:
+                logger.info(f"REST {endpoint}: reached max pages ({max_pages}), stopping with {len(results)} items")
+                break
+
             if "Link" in response.headers:
                 for part in response.headers["Link"].split(","):
                     if 'rel="next"' in part:
@@ -413,25 +417,38 @@ class GitHubExtractor:
         """
         Extract modified files + patches for each PR.
         If pr_numbers is None, extracts for all PRs in the database.
+        Skips PRs that already have files extracted (idempotent).
         """
         with self.session_factory() as session:
             if pr_numbers is None:
                 pr_numbers = [pr.number for pr in session.query(PullRequest.number).all()]
 
-        logger.info(f"Extracting files for {len(pr_numbers)} PRs...")
+            # Skip PRs already extracted
+            already_done = set(
+                r[0] for r in session.query(PullRequestFile.pr_number).distinct().all()
+            )
+
+        remaining = [n for n in pr_numbers if n not in already_done]
+        logger.info(f"Extracting files for {len(remaining)} PRs ({len(already_done)} already done, {len(pr_numbers)} total)")
 
         count = 0
-        for i, pr_number in enumerate(pr_numbers):
+        errors = 0
+        for i, pr_number in enumerate(remaining):
             try:
-                files = self._rest_get(f"pulls/{pr_number}/files", params={"per_page": 100})
-            except requests.exceptions.HTTPError as e:
-                logger.warning(f"PR #{pr_number}: {e}")
+                files = self._rest_get(f"pulls/{pr_number}/files", params={"per_page": 100}, max_pages=50)
+            except (requests.exceptions.HTTPError,
+                    requests.exceptions.ConnectionError,
+                    requests.exceptions.ChunkedEncodingError) as e:
+                logger.warning(f"PR #{pr_number}: {e.__class__.__name__}: {e}")
+                errors += 1
+                if errors > 20:
+                    logger.error(f"Too many errors ({errors}), stopping. {i} PRs processed.")
+                    break
                 continue
 
-            with self.session_factory() as session:
-                # Delete existing files for this PR
-                session.query(PullRequestFile).filter_by(pr_number=pr_number).delete()
+            errors = 0  # Reset on success
 
+            with self.session_factory() as session:
                 for f in files:
                     patch = f.get("patch", "")
                     if len(patch) > MAX_PATCH_SIZE:
@@ -450,11 +467,11 @@ class GitHubExtractor:
                 session.commit()
 
             if (i + 1) % 100 == 0:
-                logger.info(f"PR files: {i + 1}/{len(pr_numbers)} PRs processed ({count} files)")
+                logger.info(f"PR files: {i + 1}/{len(remaining)} PRs processed ({count} files)")
 
             time.sleep(GITHUB_SLEEP_BETWEEN_PAGES)
 
-        logger.info(f"PR files done: {count} files for {len(pr_numbers)} PRs")
+        logger.info(f"PR files done: {count} files for {len(remaining)} PRs")
 
     # ──────────────────────────────────────────
     # Orchestrator

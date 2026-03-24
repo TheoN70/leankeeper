@@ -8,4 +8,6 @@ mathlib4.wiki
 wiki
 __pycache__/
 leankeeper/data/
+ctx.md
+leankeeper.txt
 

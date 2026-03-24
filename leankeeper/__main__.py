@@ -22,6 +22,7 @@ from leankeeper.config import DATABASE_URL, LOG_LEVEL
 from leankeeper.models.database import (
     Commit,
     CommitFile,
+    Declaration,
     IssueComment,
     PullRequest,
     PullRequestFile,
@@ -63,6 +64,11 @@ def cmd_update(args, session_factory):
     logger.info("── Updating Zulip messages ──")
     zulip = ZulipExtractor(session_factory)
     zulip.extract_all(update_only=True)
+
+    logger.info("── Updating Lean declarations ──")
+    from leankeeper.extractors.lean import LeanExtractor
+    lean = LeanExtractor(session_factory)
+    lean.extract_all()
 
     # Step 2: Index new embeddings
     from leankeeper.rag.store import index_table, SOURCE_MODELS
@@ -114,6 +120,12 @@ def cmd_extract(args, session_factory):
         extractor = ZulipExtractor(session_factory)
         extractor.extract_all(update_only=update)
 
+    if target in ("lean", "all"):
+        from leankeeper.extractors.lean import LeanExtractor
+
+        extractor = LeanExtractor(session_factory)
+        extractor.extract_all()
+
 
 def cmd_stats(args, session_factory):
     """Display database statistics."""
@@ -128,6 +140,7 @@ def cmd_stats(args, session_factory):
             ("Issue comments", IssueComment),
             ("Zulip channels", ZulipChannel),
             ("Zulip messages", ZulipMessage),
+            ("Declarations", Declaration),
         ]
 
         print("\n╔══════════════════════════════════════╗")
@@ -367,7 +380,7 @@ def main():
     extract_parser = subparsers.add_parser("extract", help="Extract data")
     extract_parser.add_argument(
         "target",
-        choices=["github", "github-reviews", "github-files", "git", "git-patches", "zulip", "all"],
+        choices=["github", "github-reviews", "github-files", "git", "git-patches", "zulip", "lean", "all"],
         help="Data source to extract",
     )
     extract_parser.add_argument("--since", help="ISO date to limit (git-patches)")

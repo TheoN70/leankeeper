@@ -209,13 +209,11 @@ Indexes: `ix_zulip_messages_channel_topic` on `(channel_id, topic)`.
 
 ---
 
-### Lean / Mathlib (not yet populated)
-
-These tables have their schema defined but are not yet populated by any extractor. They are planned for future phases.
+### Lean / Mathlib
 
 #### `declarations`
 
-Lean declarations in Mathlib (theorems, definitions, instances, classes, structures).
+Extracted by `extract lean`. 215K Lean declarations parsed from the bare mathlib4 repo via regex.
 
 | Column         | Type        | Constraints     | Description                                |
 |----------------|-------------|-----------------|--------------------------------------------|
@@ -228,7 +226,7 @@ Lean declarations in Mathlib (theorems, definitions, instances, classes, structu
 | is_public      | Boolean     | default True    | Whether publicly visible                   |
 | namespace      | String(500) | INDEX           | Namespace (e.g. `Finset`)                  |
 
-#### `imports`
+#### `imports` (not yet populated)
 
 Edges in the Mathlib import dependency graph.
 
@@ -277,4 +275,5 @@ Indexes: `ix_typeclass_hierarchy` unique on `(child_class, parent_class)`.
 | `extract git`            | `commits`, `commit_files` (stats only)                    |
 | `extract git-patches`    | `commit_files` (adds `patch` column to existing rows)     |
 | `extract zulip`          | `zulip_channels`, `zulip_messages`                        |
+| `extract lean`           | `declarations`                                            |
 | `extract all`            | All of the above except `github-files` and `git-patches`  |
