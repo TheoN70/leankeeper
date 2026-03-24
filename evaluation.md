@@ -93,18 +93,20 @@ Calls the RAG pipeline (`retriever.ask()`) with:
 - **Limit:** 10 similar examples retrieved
 - **Temporal cutoff (`before_date`):** the PR's `created_at` date
 
-#### Temporal data leakage prevention
+#### Data leakage prevention
 
-The `before_date` parameter ensures the RAG only uses embeddings with `created_at` before the PR was submitted. This simulates what the system would have known at the time — no data from the future can leak in.
+Two complementary mechanisms prevent data leakage during evaluation:
 
-This prevents two types of leakage:
-1. **Direct leakage:** the PR's own review comments appearing in search results
-2. **Indirect leakage:** later PRs or Zulip discussions that reference or were influenced by this PR
+1. **Temporal filtering (`before_date`):** The RAG only uses embeddings with `created_at` before the PR's creation date. This simulates what the system would have known at the time and prevents indirect leakage from later PRs or Zulip discussions that reference the tested PR.
+
+2. **Explicit exclusion (`exclude_source_ids`):** All `review_comments` and `reviews` belonging to the evaluated PR are collected by ID and explicitly excluded from search results via `source_id NOT IN (...)`. This prevents self-referencing even if a comment has a timestamp before the PR's creation date.
+
+Both filters are applied together for defense-in-depth.
 
 #### What happens inside `ask()`
 
 1. The query is embedded using `all-MiniLM-L6-v2` (local, CPU)
-2. pgvector searches the `embeddings` table for the 10 most similar vectors where `created_at < pr_date` and `source_table IN ('review_comments', 'reviews')`
+2. pgvector searches the `embeddings` table for the 10 most similar vectors where `created_at < pr_date` AND `source_id NOT IN (pr's own review/comment IDs)` and `source_table IN ('review_comments', 'reviews')`
 3. Results are formatted as context examples
 4. The reviewer system prompt is built with these examples
 5. The LLM (Claude by default) generates review feedback
@@ -204,22 +206,33 @@ This creates three files per PR in `eval/`:
 /eval-batch 5      # Evaluate 5 PRs with summary
 ```
 
-These skills automatically:
+The evaluation follows a **blind review protocol** to prevent classification bias:
+
+**Phase 1 — Blind review** (`/eval-pr` or `/eval-batch`):
 1. Run `eval-context` to generate the files
 2. Read the RAG context (reviewer examples from similar past PRs)
 3. Read the PR diffs (what the reviewer would see)
-4. Review the PR against Mathlib conventions
-5. Read the actual reviewer comments (ground truth)
-6. Compare: hits (same issue), misses (issue not caught), false positives (issue not real)
+4. Review the PR against Mathlib conventions — **without reading actual comments**
+5. Auto-classify each of 5 categories as flagged (1) or not (0)
+6. Write the blind review + classification to `results/pr_<N>_result.md`
+
+**Phase 2 — Comparison** (`/compare-pr`):
+1. Read the blind review from `results/pr_<N>_result.md`
+2. Read actual reviewer comments from `eval/pr_<N>_actual.md`
+3. Compare classifications (TP/TN/FP/FN per category)
+4. Fill the Excel spreadsheet
+
+This two-phase protocol ensures the agent's classification is not biased by having seen the ground truth.
 
 **Design principle — separation of concerns:**
 
 ```
-eval-context (Python, local)          Claude Code (LLM, free)
-├── Read PRs from PostgreSQL          ├── Read generated .md files
-├── Search pgvector embeddings        ├── Apply Mathlib conventions
-├── Format as markdown files          ├── Produce review
-└── No LLM call needed                └── Compare with actual feedback
+eval-context (Python, local)          /eval-pr (blind review)           /compare-pr (comparison)
+├── Read PRs from PostgreSQL          ├── Read RAG + PR context         ├── Read blind review
+├── Search pgvector embeddings        ├── Review without actual         ├── Read actual comments
+├── Exclude PR's own data             ├── Auto-classify 0/1            ├── Produce TP/TN/FP/FN
+├── Format as markdown files          └── Write result.md               └── Fill Excel
+└── No LLM call needed
 ```
 
 The data pipeline (Python) is deterministic and reproducible. The reasoning (Claude Code) is flexible and uses the full project context including CLAUDE.md with all Mathlib contribution guidelines.
@@ -277,11 +290,12 @@ Metrics are computed per category and overall. The agent fills the raw data, the
 
 ### Evaluation workflow
 
-1. Run `/eval-batch 30` (or `/eval-pr <number>` for a single PR)
-2. The agent reviews each PR, compares with actual feedback, and fills `results/results.xlsx`
-3. The agent writes per-PR reports to `results/pr_<N>_result.md`
-4. The agent reads the Summary sheet and writes `results/summary.md`
-5. Open `results/results.xlsx` in a spreadsheet app to verify the computed metrics
+1. Run `/eval-batch 30` (or `/eval-pr <number>` for a single PR) — performs blind reviews
+2. The agent reviews each PR **without reading actual feedback** and writes `results/pr_<N>_result.md`
+3. Run `/compare-pr <number>` for each PR (or step 5 of `/eval-batch` does this automatically)
+4. The agent reads actual comments, compares with the blind review, and fills `results/results.xlsx`
+5. The agent reads the Summary sheet and writes `results/summary.md`
+6. Open `results/results.xlsx` in a spreadsheet app to verify the computed metrics
 
 ## How to interpret results
 
@@ -327,14 +341,16 @@ leankeeper/rag/eval.py
 │   └── export()                   → Writes JSONL file
 │
 │   Depends on:
-│   ├── leankeeper/rag/retriever.py  → ask() with before_date parameter
-│   ├── leankeeper/rag/store.py      → search() with temporal filtering
+│   ├── leankeeper/rag/retriever.py  → ask() with before_date + exclude_source_ids
+│   ├── leankeeper/rag/store.py      → search() with temporal + ID exclusion filtering
 │   ├── leankeeper/rag/prompt.py     → SYSTEM_REVIEWER prompt template
 │   └── leankeeper/rag/llm.py       → LLM backend (Option A only)
 
 .claude/commands/
-├── eval-pr.md      → Claude Code skill: evaluate a single PR
-└── eval-batch.md   → Claude Code skill: evaluate multiple PRs
+├── eval-pr.md      → Claude Code skill: blind review of a single PR
+├── eval-batch.md   → Claude Code skill: blind review of multiple PRs + comparison
+├── compare-pr.md   → Claude Code skill: compare blind review with actual feedback
+└── review-pr.md    → Claude Code skill: review a PR (no evaluation)
 
 eval/                → Generated context files (gitignored)
 ├── pr_<N>_context.md  → PR diffs

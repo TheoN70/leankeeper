@@ -37,7 +37,7 @@ TEXT_BUILDERS = {
     "review_comments": lambda row: f"{row.author} on {row.filepath or 'PR'}:\n{row.body}",
     "zulip_messages": lambda row: f"[{row.topic}] {row.sender_name}:\n{row.content}",
     "pull_requests": lambda row: f"PR #{row.number}: {row.title}\n{row.body or ''}",
-    "reviews": lambda row: f"{row.author} {row.state} on PR#{row.pr_number}:\n{row.body or ''}",
+    "reviews": lambda row: f"{row.author} {row.state} on PR#{row.pr_number}:\n{row.body}" if row.body and row.body.strip() else "",
     "issue_comments": lambda row: f"{row.author} on PR#{row.pr_number}:\n{row.body}",
     "declarations": lambda row: f"{row.name}: {row.type_signature or ''}\n{row.docstring or ''}",
 }
@@ -217,13 +217,16 @@ def _flush_batch(session, embedder, table_name, texts, ids, dates=None):
 
 
 def search(session_factory, query: str, source_tables: list[str] = None, limit: int = 10,
-           before_date=None, min_similarity: float = 0.45):
+           before_date=None, min_similarity: float = 0.45,
+           exclude_source_ids: set[str] = None):
     """Semantic search across embeddings.
 
     Args:
         before_date: If set, only return embeddings created before this date.
                      Used for evaluation to prevent temporal data leakage.
         min_similarity: Minimum cosine similarity threshold. Results below this are filtered out.
+        exclude_source_ids: If set, exclude embeddings whose source_id is in this set.
+                            Used for evaluation to prevent self-referencing data leakage.
     """
     embedder = Embedder(EMBEDDING_MODEL)
     query_emb = embedder.embed_one(query)
@@ -241,6 +244,12 @@ def search(session_factory, query: str, source_tables: list[str] = None, limit: 
     if before_date is not None:
         conditions.append("created_at < :before_date")
         params["before_date"] = before_date
+
+    if exclude_source_ids:
+        ex_placeholders = ", ".join(f":ex{i}" for i in range(len(exclude_source_ids)))
+        conditions.append(f"source_id NOT IN ({ex_placeholders})")
+        for i, sid in enumerate(exclude_source_ids):
+            params[f"ex{i}"] = str(sid)
 
     where = "WHERE " + " AND ".join(conditions) if conditions else ""
 

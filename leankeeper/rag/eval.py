@@ -119,16 +119,26 @@ class RAGEvaluator:
         if not actual:
             return {"pr_number": pr_number, "error": "No reviewer comments"}
 
-        # Get the PR creation date for temporal filtering
+        # Get the PR creation date and collect IDs to exclude (prevent self-referencing)
         with self.session_factory() as session:
             pr = session.get(PullRequest, pr_number)
             pr_date = pr.created_at if pr else None
+
+            # Collect all source IDs belonging to this PR to exclude from RAG search
+            exclude_ids = set()
+            review_ids = session.query(Review.id).filter_by(pr_number=pr_number).all()
+            for (rid,) in review_ids:
+                exclude_ids.add(str(rid))
+            comment_ids = session.query(ReviewComment.id).filter_by(pr_number=pr_number).all()
+            for (cid,) in comment_ids:
+                exclude_ids.add(str(cid))
 
         # Truncate context if too long for the LLM
         if len(context) > 8000:
             context = context[:8000] + "\n... [truncated]"
 
-        # Run RAG reviewer (only use data from before the PR was created)
+        # Run RAG reviewer (only use data from before the PR was created,
+        # and explicitly exclude this PR's own reviews/comments)
         rag_feedback = ask(
             self.session_factory,
             f"Review this Mathlib PR:\n\n{context}",
@@ -136,6 +146,7 @@ class RAGEvaluator:
             limit=10,
             backend=backend,
             before_date=pr_date,
+            exclude_source_ids=exclude_ids,
         )
 
         return {
@@ -219,21 +230,31 @@ class RAGEvaluator:
             logger.warning(f"PR #{pr_number}: no reviewer comments")
             return None
 
-        # PR date for temporal filtering
+        # PR date for temporal filtering + collect IDs to exclude
         with self.session_factory() as session:
             pr = session.get(PullRequest, pr_number)
             pr_date = pr.created_at if pr else None
             pr_title = pr.title if pr else ""
             pr_author = pr.author if pr else ""
 
+            # Collect all source IDs belonging to this PR to exclude from RAG search
+            exclude_ids = set()
+            review_ids = session.query(Review.id).filter_by(pr_number=pr_number).all()
+            for (rid,) in review_ids:
+                exclude_ids.add(str(rid))
+            comment_ids = session.query(ReviewComment.id).filter_by(pr_number=pr_number).all()
+            for (cid,) in comment_ids:
+                exclude_ids.add(str(cid))
+
         # Truncate context for RAG query
         query_context = context[:8000] if len(context) > 8000 else context
 
-        # RAG retrieval (no LLM call)
+        # RAG retrieval (no LLM call, excluding this PR's own data)
         sources = ["review_comments", "reviews"]
         results = store.search(
             self.session_factory, query_context,
             source_tables=sources, limit=10, before_date=pr_date,
+            exclude_source_ids=exclude_ids,
         )
         rag_examples = _format_context(results) if results else "(No relevant examples found.)"
         rag_prompt = build_reviewer_prompt(rag_examples)
