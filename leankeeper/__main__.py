@@ -16,6 +16,7 @@ Usage:
 import argparse
 import json
 import logging
+import os
 import sys
 
 from leankeeper.config import DATABASE_URL, LOG_LEVEL
@@ -352,9 +353,15 @@ def cmd_rag(args, session_factory):
             evaluator.export(results, args.export)
 
     elif action == "eval-context":
+        import shutil
         from leankeeper.rag.eval import RAGEvaluator
         evaluator = RAGEvaluator(session_factory)
         output_dir = args.output or "eval"
+
+        # Clean eval directory to avoid conflicts with previous runs
+        if os.path.exists(output_dir):
+            shutil.rmtree(output_dir)
+            logger.info(f"Cleaned {output_dir}/")
 
         if args.pr:
             pr_numbers = [args.pr]
@@ -372,7 +379,21 @@ def cmd_rag(args, session_factory):
             if result:
                 generated.append(result)
 
+        # Write index file listing all generated PRs
+        os.makedirs("results", exist_ok=True)
+        index_path = os.path.join(output_dir, "index.md")
+        with open(index_path, "w", encoding="utf-8") as f:
+            f.write("# Evaluation Run\n\n")
+            f.write(f"**PRs evaluated:** {len(generated)}\n\n")
+            for g in generated:
+                f.write(f"- PR #{g['pr_number']}: ")
+                f.write(f"[context]({os.path.basename(g['context'])}) | ")
+                f.write(f"[rag]({os.path.basename(g['rag'])}) | ")
+                f.write(f"[actual]({os.path.basename(g['actual'])})\n")
+            f.write(f"\nResults will be written to `results/`\n")
+
         print(f"\nGenerated context for {len(generated)} PRs in {output_dir}/")
+        print(f"Index: {index_path}")
         for g in generated:
             print(f"  PR #{g['pr_number']}: {g['context']}, {g['rag']}, {g['actual']}")
 

@@ -8,30 +8,39 @@ The number of PRs to evaluate is: $ARGUMENTS (default: 5 if not specified).
 cd /home/administrateur/Bureau/Boulot/leankeeper/leankeeper && python -m leankeeper rag eval-context --limit $ARGUMENTS --output eval
 ```
 
-This generates 3 files per PR in the `eval/` directory (context, rag, actual).
+This cleans the `eval/` directory and generates 3 files per PR (context, rag, actual).
 
-## Step 2: List generated PRs
+## Step 2: Read the index
+
+Read `eval/index.md` to see which PRs were generated.
+
+## Step 3: Create results directory
 
 ```bash
-ls eval/pr_*_context.md 2>/dev/null | sed 's/.*pr_\(.*\)_context.md/\1/'
+mkdir -p results
 ```
 
-## Step 3: For each PR, evaluate
+## Step 4: For each PR, evaluate
 
-For each PR number found:
+For each PR number listed in `eval/index.md`:
 
 1. Read `eval/pr_<number>_rag.md` (RAG context with reviewer examples)
 2. Read `eval/pr_<number>_context.md` (PR diffs)
 3. Review the PR against Mathlib conventions (naming, generality, API, style, docs)
 4. Read `eval/pr_<number>_actual.md` (actual reviewer comments)
 5. Compare your review with the actual feedback
-6. Note: hits (same issue flagged), misses (issue you didn't catch), false positives (issue you flagged but reviewers didn't)
+6. Write results to `results/pr_<number>_result.md` with:
+   - Your review
+   - Comparison with actual feedback
+   - Hits / misses / false positives
 
-## Step 4: Summary
+## Step 5: Write summary
 
-After evaluating all PRs, provide a summary:
+After evaluating all PRs, write `results/summary.md` with:
 - Total PRs evaluated
-- Average category hit rate (what % of real reviewer issues did you also identify?)
+- Per-PR scores (hits, misses, false positives)
+- Average category hit rate
 - Most commonly missed category
 - Most common false positive category
 - Overall assessment of RAG quality
+- Recommendations for improvement

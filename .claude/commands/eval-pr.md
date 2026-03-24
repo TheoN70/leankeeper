@@ -34,8 +34,13 @@ Provide specific, actionable feedback with code suggestions where possible.
 Read the file `eval/pr_$ARGUMENTS_actual.md`. This contains what the real Mathlib reviewers actually said.
 
 Compare your review with the actual feedback:
-- Which issues did you catch that the reviewers also caught?
-- Which issues did you miss?
-- Which issues did you flag that the reviewers didn't mention?
+- Which issues did you catch that the reviewers also caught? (hits)
+- Which issues did you miss? (misses)
+- Which issues did you flag that the reviewers didn't mention? (false positives)
 
-Provide a summary of the comparison.
+## Step 6: Write results
+
+Write a structured evaluation report to `results/pr_$ARGUMENTS_result.md` with:
+- Your review
+- The comparison with actual feedback
+- A score summary (hits / misses / false positives)
