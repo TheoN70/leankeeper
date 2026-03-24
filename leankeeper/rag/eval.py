@@ -30,7 +30,7 @@ class RAGEvaluator:
         self.session_factory = session_factory
 
     def select_test_prs(self, limit: int = 30) -> list[int]:
-        """Select merged PRs that had CHANGES_REQUESTED reviews."""
+        """Select merged PRs with quality review comments for evaluation."""
         with self.session_factory() as session:
             results = session.execute(text("""
                 SELECT DISTINCT r.pr_number
@@ -38,14 +38,18 @@ class RAGEvaluator:
                 JOIN pull_requests pr ON pr.number = r.pr_number
                 WHERE r.state = 'CHANGES_REQUESTED'
                 AND pr.state = 'merged'
-                AND EXISTS (
-                    SELECT 1 FROM review_comments rc
-                    WHERE rc.pr_number = r.pr_number
-                )
+                AND pr.created_at >= '2023-01-01'
                 AND EXISTS (
                     SELECT 1 FROM pull_request_files pf
                     WHERE pf.pr_number = r.pr_number
                 )
+                AND (
+                    SELECT COUNT(*) FROM review_comments rc
+                    WHERE rc.pr_number = r.pr_number
+                    AND rc.author != 'github-actions[bot]'
+                    AND rc.author != pr.author
+                    AND LENGTH(rc.body) > 20
+                ) >= 2
             """)).fetchall()
 
         pr_numbers = [r[0] for r in results]
@@ -247,7 +251,15 @@ class RAGEvaluator:
 
         with open(rag_path, "w", encoding="utf-8") as f:
             f.write(f"# RAG Context for PR #{pr_number}\n\n")
-            f.write("## Instructions\n\n")
+
+            # Include BASE_CONTEXT.md for full convention reference
+            base_context_path = os.path.join(os.path.dirname(__file__), "..", "..", "BASE_CONTEXT.md")
+            if os.path.exists(base_context_path):
+                with open(base_context_path, "r") as bc:
+                    f.write(bc.read())
+                f.write("\n\n---\n\n")
+
+            f.write("## Reviewer Instructions\n\n")
             f.write(rag_prompt)
             f.write(f"\n\n## PR to Review\n\n")
             f.write(query_context)

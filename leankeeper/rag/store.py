@@ -21,6 +21,17 @@ from leankeeper.rag.embedder import Embedder
 
 logger = logging.getLogger(__name__)
 
+# Minimum text length per table (filter noisy short messages)
+MIN_TEXT_LENGTH = {
+    "zulip_messages": 50,
+    "reviews": 30,
+    "issue_comments": 30,
+    "review_comments": 10,
+    "pull_requests": 10,
+    "declarations": 10,
+}
+DEFAULT_MIN_TEXT_LENGTH = 10
+
 # How to build text from each source table
 TEXT_BUILDERS = {
     "review_comments": lambda row: f"{row.author} on {row.filepath or 'PR'}:\n{row.body}",
@@ -151,7 +162,8 @@ def index_table(session_factory, table_name: str, update_only: bool = False):
                 continue
 
             row_text = text_builder(row)
-            if not row_text or len(row_text.strip()) < 10:
+            min_len = MIN_TEXT_LENGTH.get(table_name, DEFAULT_MIN_TEXT_LENGTH)
+            if not row_text or len(row_text.strip()) < min_len:
                 continue
 
             if len(row_text) > 2000:
@@ -205,12 +217,13 @@ def _flush_batch(session, embedder, table_name, texts, ids, dates=None):
 
 
 def search(session_factory, query: str, source_tables: list[str] = None, limit: int = 10,
-           before_date=None):
+           before_date=None, min_similarity: float = 0.45):
     """Semantic search across embeddings.
 
     Args:
         before_date: If set, only return embeddings created before this date.
                      Used for evaluation to prevent temporal data leakage.
+        min_similarity: Minimum cosine similarity threshold. Results below this are filtered out.
     """
     embedder = Embedder(EMBEDDING_MODEL)
     query_emb = embedder.embed_one(query)
@@ -246,6 +259,7 @@ def search(session_factory, query: str, source_tables: list[str] = None, limit: 
     return [
         {"source_table": r[0], "source_id": r[1], "text": r[2], "similarity": round(r[3], 4)}
         for r in results
+        if r[3] >= min_similarity
     ]
 
 
