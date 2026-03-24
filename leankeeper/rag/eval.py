@@ -7,6 +7,7 @@ and compares RAG output vs actual reviewer feedback.
 
 import json
 import logging
+import os
 import random
 
 from sqlalchemy import text
@@ -17,7 +18,9 @@ from leankeeper.models.database import (
     Review,
     ReviewComment,
 )
-from leankeeper.rag.retriever import ask
+from leankeeper.rag.retriever import ask, _format_context
+from leankeeper.rag.prompt import build_reviewer_prompt
+from leankeeper.rag import store
 
 logger = logging.getLogger(__name__)
 
@@ -189,3 +192,79 @@ class RAGEvaluator:
             for r in results:
                 f.write(json.dumps(r, ensure_ascii=False, default=str) + "\n")
         logger.info(f"Results exported to {path}")
+
+    def generate_context_files(self, pr_number: int, output_dir: str = "eval") -> dict | None:
+        """Generate evaluation context files for a PR (no LLM call).
+
+        Creates three .md files:
+        - pr_<number>_context.md — PR diffs (what the reviewer sees)
+        - pr_<number>_rag.md — RAG system prompt + retrieved examples
+        - pr_<number>_actual.md — Actual reviewer comments (ground truth)
+        """
+        os.makedirs(output_dir, exist_ok=True)
+
+        # PR context
+        context = self.build_pr_context(pr_number)
+        if not context:
+            logger.warning(f"PR #{pr_number}: no context available")
+            return None
+
+        # Actual feedback
+        actual = self.get_actual_feedback(pr_number)
+        if not actual:
+            logger.warning(f"PR #{pr_number}: no reviewer comments")
+            return None
+
+        # PR date for temporal filtering
+        with self.session_factory() as session:
+            pr = session.get(PullRequest, pr_number)
+            pr_date = pr.created_at if pr else None
+            pr_title = pr.title if pr else ""
+            pr_author = pr.author if pr else ""
+
+        # Truncate context for RAG query
+        query_context = context[:8000] if len(context) > 8000 else context
+
+        # RAG retrieval (no LLM call)
+        sources = ["review_comments", "reviews"]
+        results = store.search(
+            self.session_factory, query_context,
+            source_tables=sources, limit=10, before_date=pr_date,
+        )
+        rag_examples = _format_context(results) if results else "(No relevant examples found.)"
+        rag_prompt = build_reviewer_prompt(rag_examples)
+
+        # Write files
+        ctx_path = os.path.join(output_dir, f"pr_{pr_number}_context.md")
+        rag_path = os.path.join(output_dir, f"pr_{pr_number}_rag.md")
+        actual_path = os.path.join(output_dir, f"pr_{pr_number}_actual.md")
+
+        with open(ctx_path, "w", encoding="utf-8") as f:
+            f.write(f"# PR #{pr_number}: {pr_title}\n\n")
+            f.write(f"**Author:** {pr_author}\n\n")
+            f.write("## PR Content (what the reviewer sees)\n\n")
+            f.write(context)
+
+        with open(rag_path, "w", encoding="utf-8") as f:
+            f.write(f"# RAG Context for PR #{pr_number}\n\n")
+            f.write("## Instructions\n\n")
+            f.write(rag_prompt)
+            f.write(f"\n\n## PR to Review\n\n")
+            f.write(query_context)
+
+        with open(actual_path, "w", encoding="utf-8") as f:
+            f.write(f"# Actual Reviewer Feedback for PR #{pr_number}\n\n")
+            f.write(f"**{len(actual)} comments from real Mathlib reviewers.**\n\n")
+            f.write("---\n\n")
+            for i, c in enumerate(actual, 1):
+                filepath = c["filepath"] or "general"
+                f.write(f"### Comment {i} — {c['author']} on `{filepath}`\n\n")
+                f.write(f"{c['body']}\n\n")
+
+        logger.info(f"PR #{pr_number}: files written to {output_dir}/")
+        return {
+            "pr_number": pr_number,
+            "context": ctx_path,
+            "rag": rag_path,
+            "actual": actual_path,
+        }

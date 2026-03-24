@@ -351,6 +351,31 @@ def cmd_rag(args, session_factory):
         if args.export:
             evaluator.export(results, args.export)
 
+    elif action == "eval-context":
+        from leankeeper.rag.eval import RAGEvaluator
+        evaluator = RAGEvaluator(session_factory)
+        output_dir = args.output or "eval"
+
+        if args.pr:
+            pr_numbers = [args.pr]
+        else:
+            pr_numbers = evaluator.select_test_prs(limit=args.limit)
+
+        if not pr_numbers:
+            print("No eligible PRs found. Run 'extract github-files' first.")
+            return
+
+        generated = []
+        for i, pr_number in enumerate(pr_numbers, 1):
+            logger.info(f"[{i}/{len(pr_numbers)}] Generating context for PR #{pr_number}")
+            result = evaluator.generate_context_files(pr_number, output_dir=output_dir)
+            if result:
+                generated.append(result)
+
+        print(f"\nGenerated context for {len(generated)} PRs in {output_dir}/")
+        for g in generated:
+            print(f"  PR #{g['pr_number']}: {g['context']}, {g['rag']}, {g['actual']}")
+
     elif action == "status":
         from leankeeper.rag.store import status
         counts = status(session_factory)
@@ -426,6 +451,11 @@ def main():
     rag_eval.add_argument("--pr", type=int, help="Evaluate a specific PR number")
     rag_eval.add_argument("--backend", choices=["claude", "openai", "ollama"], help="LLM backend override")
     rag_eval.add_argument("--export", help="Export results to JSONL file")
+
+    rag_eval_ctx = rag_sub.add_parser("eval-context", help="Generate eval context files (no LLM)")
+    rag_eval_ctx.add_argument("--limit", type=int, default=5, help="Number of PRs")
+    rag_eval_ctx.add_argument("--pr", type=int, help="Specific PR number")
+    rag_eval_ctx.add_argument("--output", help="Output directory (default: eval/)")
 
     rag_delete = rag_sub.add_parser("delete", help="Delete embeddings")
     rag_delete.add_argument("--table", help="Source table to delete (default: all)")

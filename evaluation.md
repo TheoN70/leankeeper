@@ -166,25 +166,63 @@ This allows offline analysis, comparison across different RAG configurations, an
 
 ## Usage
 
+### Option A: LLM API evaluation
+
+Runs the full pipeline automatically — generates context, calls an LLM for review, compares.
+
 ```bash
-# Evaluate 30 random PRs (default)
-python -m leankeeper rag eval
-
-# Evaluate fewer PRs (faster, cheaper)
-python -m leankeeper rag eval --limit 5
-
-# Evaluate a specific PR
-python -m leankeeper rag eval --pr 12345
-
-# Use a different LLM backend
-python -m leankeeper rag eval --backend ollama
-
-# Save results for later analysis
-python -m leankeeper rag eval --export results.jsonl
-
-# Combine options
-python -m leankeeper rag eval --limit 10 --backend claude --export results.jsonl
+python -m leankeeper rag eval --limit 5                # 5 PRs with Claude API (~$0.15)
+python -m leankeeper rag eval --pr 12345               # Specific PR
+python -m leankeeper rag eval --backend ollama          # Free with local model
+python -m leankeeper rag eval --export results.jsonl    # Save results
 ```
+
+### Option B: Claude Code evaluation (recommended, free)
+
+Instead of calling an external LLM, use Claude Code itself. This is free (subscription) and produces better results because Claude Code has full project context.
+
+**Step 1 — Generate context files (no LLM):**
+
+```bash
+python -m leankeeper rag eval-context --pr 12345       # Single PR
+python -m leankeeper rag eval-context --limit 5        # 5 random PRs
+python -m leankeeper rag eval-context --output eval/   # Custom output dir
+```
+
+This creates three files per PR in `eval/`:
+
+| File | Content | Purpose |
+|------|---------|---------|
+| `pr_<N>_context.md` | PR title + body + file diffs | What a reviewer sees |
+| `pr_<N>_rag.md` | System prompt + 10 similar review examples | RAG context (temporally filtered) |
+| `pr_<N>_actual.md` | Actual reviewer comments | Ground truth for comparison |
+
+**Step 2 — Use Claude Code skills:**
+
+```
+/eval-pr 12345     # Evaluate a single PR
+/eval-batch 5      # Evaluate 5 PRs with summary
+```
+
+These skills automatically:
+1. Run `eval-context` to generate the files
+2. Read the RAG context (reviewer examples from similar past PRs)
+3. Read the PR diffs (what the reviewer would see)
+4. Review the PR against Mathlib conventions
+5. Read the actual reviewer comments (ground truth)
+6. Compare: hits (same issue), misses (issue not caught), false positives (issue not real)
+
+**Design principle — separation of concerns:**
+
+```
+eval-context (Python, local)          Claude Code (LLM, free)
+├── Read PRs from PostgreSQL          ├── Read generated .md files
+├── Search pgvector embeddings        ├── Apply Mathlib conventions
+├── Format as markdown files          ├── Produce review
+└── No LLM call needed                └── Compare with actual feedback
+```
+
+The data pipeline (Python) is deterministic and reproducible. The reasoning (Claude Code) is flexible and uses the full project context including CLAUDE.md with all Mathlib contribution guidelines.
 
 ## Prerequisites
 
@@ -199,12 +237,13 @@ python -m leankeeper rag eval --limit 10 --backend claude --export results.jsonl
    python -m leankeeper rag backfill-dates    # For existing embeddings
    ```
 
-3. **LLM backend configured:**
+3. **For Option A only — LLM backend configured:**
    ```bash
-   export ANTHROPIC_API_KEY="sk-ant-..."      # For Claude (default)
+   export ANTHROPIC_API_KEY="sk-ant-..."      # For Claude API
    # or
-   export LLM_BACKEND=ollama                  # For free local evaluation
+   export LLM_BACKEND=ollama                  # For local model
    ```
+   Option B (Claude Code) needs no additional configuration.
 
 ## What it measures
 
@@ -254,17 +293,27 @@ After running the evaluation, use the results to improve the RAG:
 ```
 leankeeper/rag/eval.py
 ├── RAGEvaluator
-│   ├── select_test_prs()      → SQL query on reviews + pull_requests + pull_request_files
-│   ├── build_pr_context()     → Reads PullRequest + PullRequestFile from DB
-│   ├── get_actual_feedback()  → Reads ReviewComment from DB (ground truth)
-│   ├── run_eval()             → Calls retriever.ask() with before_date
-│   ├── run_batch()            → Loops run_eval() over multiple PRs
-│   ├── report()               → Prints side-by-side comparison
-│   └── export()               → Writes JSONL file
+│   ├── select_test_prs()          → SQL query on reviews + pull_requests + pull_request_files
+│   ├── build_pr_context()         → Reads PullRequest + PullRequestFile from DB
+│   ├── get_actual_feedback()      → Reads ReviewComment from DB (ground truth)
+│   ├── generate_context_files()   → Writes 3 .md files per PR (no LLM call)
+│   ├── run_eval()                 → Calls retriever.ask() with before_date (Option A)
+│   ├── run_batch()                → Loops run_eval() over multiple PRs
+│   ├── report()                   → Prints side-by-side comparison
+│   └── export()                   → Writes JSONL file
 │
 │   Depends on:
 │   ├── leankeeper/rag/retriever.py  → ask() with before_date parameter
 │   ├── leankeeper/rag/store.py      → search() with temporal filtering
 │   ├── leankeeper/rag/prompt.py     → SYSTEM_REVIEWER prompt template
-│   └── leankeeper/rag/llm.py       → LLM backend (Claude/OpenAI/Ollama)
+│   └── leankeeper/rag/llm.py       → LLM backend (Option A only)
+
+.claude/commands/
+├── eval-pr.md      → Claude Code skill: evaluate a single PR
+└── eval-batch.md   → Claude Code skill: evaluate multiple PRs
+
+eval/                → Generated context files (gitignored)
+├── pr_<N>_context.md  → PR diffs
+├── pr_<N>_rag.md      → RAG system prompt + examples
+└── pr_<N>_actual.md   → Actual reviewer comments
 ```

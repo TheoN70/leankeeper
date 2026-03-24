@@ -11,4 +11,6 @@ leankeeper/data/
 ctx.md
 leankeeper.txt
 contribute/
+eval/
+leankeeper/rag/__pycache__/
 

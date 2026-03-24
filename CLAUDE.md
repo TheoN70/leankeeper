@@ -146,6 +146,8 @@ python -m leankeeper rag chat --mode reviewer           # Reviewer mode
 python -m leankeeper rag chat --backend ollama          # Use local LLM
 python -m leankeeper rag backfill-dates                  # Backfill created_at on existing embeddings
 python -m leankeeper rag eval --limit 5                  # Test RAG on historical PRs
+python -m leankeeper rag eval-context --pr 12345         # Generate eval context files (no LLM)
+python -m leankeeper rag eval-context --limit 5          # Generate for 5 random PRs
 python -m leankeeper rag delete --table zulip_messages   # Delete embeddings for a table
 python -m leankeeper rag delete --table reviews --id 42 # Delete a specific embedding
 python -m leankeeper rag delete                         # Delete all (with confirmation)

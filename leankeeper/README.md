@@ -88,6 +88,11 @@ python -m leankeeper rag delete --table zulip_messages   # Delete all Zulip embe
 python -m leankeeper rag delete --table reviews --id 42  # Delete a specific one
 python -m leankeeper rag delete                          # Delete all (with confirmation)
 
+# Evaluation (generate context files, no LLM needed)
+python -m leankeeper rag eval-context --pr 12345       # Single PR
+python -m leankeeper rag eval-context --limit 5        # 5 random PRs
+# Then use Claude Code: /eval-pr 12345 or /eval-batch 5
+
 # Status
 python -m leankeeper rag status
 ```
