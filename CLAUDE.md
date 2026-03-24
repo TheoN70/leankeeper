@@ -8,12 +8,75 @@ LeanKeeper is an AI agent specialized for Mathlib (Lean 4's community math libra
 
 The core metric is: **"does it pass Mathlib review?"**, not "does it compile?".
 
+The ultimate goal of LeanKeeper is to enable **refactoring of complex functional Lean proofs** that compile but do not meet Mathlib standards (i.e., proofs that would be rejected in PR review). LeanKeeper transforms these valid-but-non-idiomatic proofs into contributions that conform to Mathlib's conventions and pass review.
+
 ## Key Concepts
 
 - **Lean 4**: proof assistant where compilation = correctness
 - **Mathlib**: ~2M lines, ~210K theorems, organized as a DAG with a typeclass hierarchy (`Monoid → Group → Ring → Field`, etc.)
 - **The problem**: AI companies dump massive compilable code that doesn't meet Mathlib quality standards (wrong generality level, missing API lemmas, broken naming conventions), poisoning the design space
 - **LeanKeeper's role**: act as a "good junior Mathlib contributor" — explore the typeclass hierarchy, propose well-integrated definitions with standard API, follow naming conventions, and submit clean ~200-line PRs
+
+## Mathlib Contribution Guidelines (synthesized from `contribute/`)
+
+The full guidelines are in the `contribute/` directory. Key rules summarized below.
+
+### Naming conventions (`contribute/naming.md`)
+
+- **Capitalization**: `Prop` terms (theorems) use `snake_case`. Types/classes use `UpperCamelCase`. Functions named like their return type. Other terms use `lowerCamelCase`. When `UpperCamelCase` appears in `snake_case`, use `lowerCamelCase` (e.g. `neZero_iff` for `NeZero`).
+- **Spelling**: American English (`factorization`, not `factorisation`).
+- **Symbol dictionary**: `∨`→`or`, `∧`→`and`, `→`→`of`/`imp`, `↔`→`iff`, `¬`→`not`, `+`→`add`, `*`→`mul`, `-`→`neg`/`sub`, `⁻¹`→`inv`, `∣`→`dvd`, `≤`→`le`/`ge`, `<`→`lt`/`gt`, `⊔`→`sup`, `⊓`→`inf`, `⊥`→`bot`, `⊤`→`top`, `∈`→`mem`, `∪`→`union`, `∩`→`inter`.
+- **Descriptive names**: conclusion first, hypotheses with `_of_`. Example: `C_of_A_of_B` for `A → B → C`. Hypotheses listed in order they appear, not reverse.
+- **Abbreviations**: `pos` for `zero_lt`, `neg` for `lt_zero`, `nonpos` for `le_zero`, `nonneg` for `zero_le`.
+- **Dot notation**: use namespace dots for projection notation (`And.symm`, `Eq.trans`, `LE.trans`).
+- **Axiomatic names**: `refl`, `irrefl`, `symm`, `trans`, `antisymm`, `comm`, `assoc`, `left_comm`, `right_comm`, `inj`.
+- **Structural lemmas**: `.ext` with `@[ext]` for extensionality. `.ext_iff` for biconditional. `_injective` for `Function.Injective f`, `_inj` for `f x = f y ↔ x = y`.
+- **Predicates as suffixes**: most predicates as prefixes (`isClosed_Icc`), except: `_injective`, `_surjective`, `_bijective`, `_monotone`, `_antitone`, `_strictMono`.
+- **Prop-valued classes**: nouns get `Is` prefix (`IsTopologicalRing`), adjectives may omit it (`Normal`).
+- **Variable conventions**: `α β γ` for types, `x y z` for elements, `h h₁` for assumptions, `G` for groups, `R` for rings, `K`/`𝕜` for fields, `E` for vector spaces.
+
+### Style guide (`contribute/style.md`)
+
+- **Line length**: max 100 characters.
+- **Header**: copyright, `module` keyword on its own line, `public import`s grouped, then `import`s grouped alphabetically.
+- **Module docstring**: `/-! -/` after imports with title, summary, main results, notation, implementation notes, references, tags.
+- **Indentation**: 2 spaces for proof body, 4 spaces for multiline theorem statement continuation. `by` at end of previous line (not on its own line).
+- **Declarations**: all top-level (flush-left). Explicit types for all arguments and return types.
+- **Instances**: use `where` syntax.
+- **Hypotheses**: prefer left of colon over universal quantifiers when proof introduces them.
+- **Anonymous functions**: prefer `fun x ↦` over `fun x =>` and `λ`. `↦` preferred in source.
+- **Tactic mode**: one tactic per line. Focusing dot `·` not indented, contents indented. Short proofs can use semicolons on one line.
+- **`simp`**: terminal `simp` calls should NOT be squeezed (not replaced by `simp?` output).
+- **`calc`**: relations aligned, `_` left-justified, `calc` at end of previous line.
+- **Whitespace**: prefer `<|` over `$`. Use `|>` for dot notation chains. Space after `←` in `rw`.
+- **No empty lines inside declarations**.
+- **Normal forms**: settle on one standard form for equivalent statements (e.g. `s.Nonempty`).
+- **Deprecation**: use `@[deprecated (since := "YYYY-MM-DD")]` with alias. Deprecations can be deleted after 6 months.
+- **Transparency**: definitions `semireducible` by default. Use structure wrappers instead of `irreducible`.
+- **Performance**: benchmark with `!bench` on PRs that touch classes, instances, simp lemmas, imports.
+
+### Documentation (`contribute/doc.md`)
+
+- Every definition and major theorem requires a doc string (`/-- -/`).
+- Doc strings should convey mathematical meaning (allowed to lie slightly about implementation).
+- Module docstring required: title, summary, main results, notation, implementation notes, references.
+- Use backticks for Lean names, LaTeX `$ $` for math.
+- Sectioning comments with `/-! -/` and `###` headers.
+
+### PR conventions (`contribute/commit.md`)
+
+- Title format: `<type>(<scope>): <subject>` where type is `feat`/`fix`/`doc`/`style`/`refactor`/`chore`/`perf`/`ci`.
+- Subject: imperative present tense, no capitalization, no trailing dot.
+- Dependencies: `- [ ] depends on: #XXXX` in description.
+
+### PR review criteria (`contribute/pr-review.md`)
+
+Reviewers check (from easiest to hardest):
+1. **Style**: code formatting, naming conventions, PR title/description
+2. **Documentation**: docstrings, cross-references, proof sketches in comments
+3. **Location**: declarations in right files, no duplicates, minimal imports, reasonable file length (<1000 lines)
+4. **Improvements**: split long proofs, better tactics (e.g. `gcongr` over `mul_le_mul_of_nonneg_left`), simpler proof structure
+5. **Library integration**: sensible API, sufficient generality, fits mathlib design
 
 ## Development
 

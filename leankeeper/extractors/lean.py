@@ -169,10 +169,46 @@ class LeanExtractor:
 
         return declarations
 
-    def extract_all(self):
+    def _get_last_commit_sha(self) -> str | None:
+        """Get the commit SHA stored from the last extraction."""
+        marker = self.repo_dir / ".leankeeper_last_sha"
+        if marker.exists():
+            return marker.read_text().strip()
+        return None
+
+    def _save_last_commit_sha(self):
+        """Save the current HEAD SHA for incremental updates."""
+        sha = self._git("rev-parse", "HEAD").strip()
+        marker = self.repo_dir / ".leankeeper_last_sha"
+        marker.write_text(sha)
+
+    def _get_changed_files(self, since_sha: str) -> set[str]:
+        """Get .lean files changed since a given commit."""
+        output = self._git("diff", "--name-only", since_sha, "HEAD", timeout=30)
+        return {
+            line for line in output.strip().split("\n")
+            if line.startswith("Mathlib/") and line.endswith(".lean")
+        }
+
+    def extract_all(self, update_only: bool = False):
         """Extract all declarations from Mathlib .lean files."""
         lean_files = self.list_lean_files()
-        logger.info(f"Found {len(lean_files)} Lean files")
+
+        # In update mode, only reparse changed files
+        if update_only:
+            last_sha = self._get_last_commit_sha()
+            if last_sha:
+                changed = self._get_changed_files(last_sha)
+                if not changed:
+                    logger.info("No Lean files changed since last extraction")
+                    self._save_last_commit_sha()
+                    return
+                lean_files = [f for f in lean_files if f in changed]
+                logger.info(f"Update mode: {len(changed)} files changed, reparsing")
+            else:
+                logger.info("No previous extraction marker, running full extraction")
+
+        logger.info(f"Parsing {len(lean_files)} Lean files")
 
         total_decls = 0
         count = 0
@@ -205,4 +241,5 @@ class LeanExtractor:
 
             session.commit()
 
+        self._save_last_commit_sha()
         logger.info(f"Extraction done: {total_decls} declarations from {len(lean_files)} files ({count} new)")

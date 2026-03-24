@@ -68,7 +68,7 @@ def cmd_update(args, session_factory):
     logger.info("── Updating Lean declarations ──")
     from leankeeper.extractors.lean import LeanExtractor
     lean = LeanExtractor(session_factory)
-    lean.extract_all()
+    lean.extract_all(update_only=True)
 
     # Step 2: Index new embeddings
     from leankeeper.rag.store import index_table, SOURCE_MODELS
