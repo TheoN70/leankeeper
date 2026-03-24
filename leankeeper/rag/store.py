@@ -114,6 +114,19 @@ def index_table(session_factory, table_name: str, update_only: bool = False):
     pk_col = SOURCE_PK[table_name]
     date_col = SOURCE_DATE[table_name]
     text_builder = TEXT_BUILDERS[table_name]
+
+    # Quick check: skip if nothing new to index
+    if update_only:
+        with session_factory() as session:
+            source_count = session.query(model).count()
+            embedded_count = session.execute(
+                text("SELECT COUNT(*) FROM embeddings WHERE source_table = :t"),
+                {"t": table_name},
+            ).scalar()
+        if embedded_count >= source_count:
+            logger.info(f"Indexing {table_name}: already up to date ({embedded_count} embeddings)")
+            return
+
     embedder = Embedder(EMBEDDING_MODEL)
 
     # Phase 1: Read all rows (IDs + text + date) into memory
