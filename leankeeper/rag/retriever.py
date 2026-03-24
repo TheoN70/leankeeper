@@ -91,16 +91,17 @@ def build_context_md(session_factory, query: str, mode: str = "contributor",
     parts.append(f"**Query:** {query}\n")
 
     if include_project:
-        parts.append("## Project Context\n")
-        parts.append("This is a contribution to [Mathlib](https://github.com/leanprover-community/mathlib4), ")
-        parts.append("the community library of formalized mathematics in Lean 4.\n")
-        # Include wiki conventions if available
         import os
-        wiki_conventions = os.path.join(os.path.dirname(__file__), "..", "..", "wiki", "Mathlib-Conventions.md")
-        if os.path.exists(wiki_conventions):
-            with open(wiki_conventions, "r") as f:
+        # Include BASE_CONTEXT.md (comprehensive AI reference for Mathlib contributions)
+        base_context = os.path.join(os.path.dirname(__file__), "..", "..", "BASE_CONTEXT.md")
+        if os.path.exists(base_context):
+            with open(base_context, "r") as f:
                 parts.append(f.read())
             parts.append("")
+        else:
+            parts.append("## Project Context\n")
+            parts.append("This is a contribution to [Mathlib](https://github.com/leanprover-community/mathlib4), ")
+            parts.append("the community library of formalized mathematics in Lean 4.\n")
 
     parts.append("## System Prompt\n")
     parts.append(system)

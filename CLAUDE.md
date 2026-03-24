@@ -196,6 +196,7 @@ All public and extractible via GitHub and Zulip APIs:
 
 ### Documentation
 
+- **[`BASE_CONTEXT.md`](BASE_CONTEXT.md)** — Complete reference for AI-assisted Mathlib contributions: all conventions, naming rules, style guide, review criteria, and lessons learned from evaluation. Used as base context for `rag context` and evaluation skills.
 - **[Project wiki](https://github.com/TheoN70/leankeeper/wiki)** — Published as a separate GitHub wiki repo (`wiki/` directory). Covers quickstart, architecture, data sources, training pairs, Mathlib conventions, and roadmap.
 - **[`DB_ARCHITECTURE.md`](DB_ARCHITECTURE.md)** — Full database schema documentation.
 
