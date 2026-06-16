@@ -108,12 +108,22 @@ class GitHubExtractor:
         """Execute a GraphQL query with rate limiting."""
         while True:
             self._request_count += 1
-            response = requests.post(
-                GITHUB_GRAPHQL_URL,
-                headers=self.headers,
-                json={"query": query, "variables": variables},
-                timeout=30,
-            )
+            for attempt in range(3):
+                try:
+                    response = requests.post(
+                        GITHUB_GRAPHQL_URL,
+                        headers=self.headers,
+                        json={"query": query, "variables": variables},
+                        timeout=30,
+                    )
+                    break
+                except (requests.exceptions.ConnectionError, requests.exceptions.ChunkedEncodingError) as e:
+                    if attempt < 2:
+                        wait = 5 * (attempt + 1)
+                        logger.warning(f"Network error ({e.__class__.__name__}), retrying in {wait}s...")
+                        time.sleep(wait)
+                    else:
+                        raise
 
             if response.status_code == 200:
                 data = response.json()
