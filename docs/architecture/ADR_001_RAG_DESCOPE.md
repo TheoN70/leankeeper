@@ -48,4 +48,5 @@ Deux constats l'ont remis en cause :
 - **Wiki ordonné + index structuré maison des déclarations** — partiellement retenu : `BASE_CONTEXT`
   est le wiki canonique ; mais l'index de recherche est délégué aux outils Mathlib plutôt que
   reconstruit (toujours à jour, maintenu par la communauté). La lecture ciblée d'une déclaration
-  existante est fournie par `lean show <name>` (sans embeddings).
+  existante est fournie par `lean show <name>`, et le fichier entier au commit d'une PR par
+  `rag fetch-file <pr> <filepath>` (via `merge_commit_sha` + `git show`, sans embeddings).

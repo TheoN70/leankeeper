@@ -157,6 +157,9 @@ python -m leankeeper rag backfill-dates                  # Backfill created_at o
 python -m leankeeper rag eval --limit 5                  # Test RAG on historical PRs
 python -m leankeeper rag eval-context --pr 12345         # Generate eval context files (no LLM)
 python -m leankeeper rag eval-context --limit 5          # Generate for 5 random PRs
+python -m leankeeper rag fetch-file <pr>                  # list files with review comments for a PR
+python -m leankeeper rag fetch-file <pr> <filepath>       # full file pre-merge (what the reviewer saw)
+python -m leankeeper rag fetch-file <pr> <filepath> -o f.lean  # write to file
 python -m leankeeper rag delete --table zulip_messages   # Delete embeddings for a table
 python -m leankeeper rag delete --table reviews --id 42 # Delete a specific embedding
 python -m leankeeper rag delete                         # Delete all (with confirmation)

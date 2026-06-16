@@ -391,6 +391,34 @@ def cmd_rag(args, session_factory):
         for g in generated:
             print(f"  PR #{g['pr_number']}: {g['context']}, {g['rag']}, {g['actual']}")
 
+    elif action == "fetch-file":
+        from leankeeper.extractors.lean import LeanExtractor
+        extractor = LeanExtractor(session_factory)
+        if not args.filepath:
+            files = extractor.list_commented_files(args.pr)
+            if not files:
+                print(f"No inline review comments found for PR #{args.pr}")
+                return
+            print(f"Files with review comments in PR #{args.pr}:")
+            for f in files:
+                print(f"  {f['comments']:>3} comment(s)  {f['filepath']}")
+            print(f"\nFetch a file: python -m leankeeper rag fetch-file {args.pr} <filepath>")
+        else:
+            try:
+                content = extractor.fetch_file_at_pr(args.pr, args.filepath, pre_merge=not args.post_merge)
+            except (ValueError, RuntimeError) as e:
+                print(f"Error: {e}", file=sys.stderr)
+                sys.exit(1)
+            label = "pre-merge" if not args.post_merge else "post-merge"
+            if args.output:
+                with open(args.output, "w") as f:
+                    f.write(content)
+                print(f"Written ({label}): {args.output}  ({len(content.splitlines())} lines)")
+            else:
+                print(f"-- PR #{args.pr}  {args.filepath}  [{label}]")
+                print()
+                print(content)
+
     elif action == "status":
         from leankeeper.rag.store import status
         counts = status(session_factory)
@@ -496,6 +524,12 @@ def main():
     rag_eval_ctx.add_argument("--limit", type=int, default=5, help="Number of PRs")
     rag_eval_ctx.add_argument("--pr", type=int, help="Specific PR number")
     rag_eval_ctx.add_argument("--output", help="Output directory (default: eval/)")
+
+    rag_fetch = rag_sub.add_parser("fetch-file", help="Fetch full file at PR merge commit")
+    rag_fetch.add_argument("pr", type=int, help="PR number")
+    rag_fetch.add_argument("filepath", nargs="?", help="File path (omit to list commented files)")
+    rag_fetch.add_argument("--post-merge", action="store_true", help="Use post-merge state (default: pre-merge)")
+    rag_fetch.add_argument("-o", "--output", help="Write output to file instead of stdout")
 
     rag_delete = rag_sub.add_parser("delete", help="Delete embeddings")
     rag_delete.add_argument("--table", help="Source table to delete (default: all)")

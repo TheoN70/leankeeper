@@ -72,6 +72,7 @@ rag context "<query>" [--mode contributor|reviewer] [--limit N] [--no-project] [
 rag chat [--mode contributor|reviewer] [--backend claude|openai|ollama]
 rag eval [--limit N] [--pr N] [--backend B] [--export FILE]    # éval pilotée LLM
 rag eval-context [--limit N] [--pr N] [--output DIR]           # génère les contextes, SANS LLM
+rag fetch-file <pr> [<filepath>] [--post-merge] [-o FILE]      # fichier entier au commit de la PR (git, pas d'embeddings)
 rag delete [--table T] [--id ID]
 rag status                          # compteurs d'embeddings
 rag backfill-dates                  # remplit created_at sur embeddings existants
@@ -113,10 +114,12 @@ de lemmes (cf. `BASE_CONTEXT` §12). **Ne pas parcourir l'arbre entier.**
 
 ## 7. Limites actuelles
 
-- **Pas de correction appliquée ni compilée** — `/fix-pr` ne voit que les **hunks tronqués**
-  (2000 car/fichier), pas les fichiers complets → réécritures de preuve impossibles. Mitigation
-  partielle : `lean show <name>` récupère l'énoncé + la preuve d'une déclaration existante depuis
-  le bare repo (version HEAD, pas la branche de la PR).
+- **Pas de correction appliquée ni compilée** — `/fix-pr` et `/eval-pr` ne voient par défaut que les
+  **hunks tronqués** (2000 car/fichier). Mitigations : `lean show <name>` récupère une déclaration
+  existante (version HEAD) ; `rag fetch-file <pr> <filepath>` récupère le **fichier entier** au commit
+  de la PR mergée (`merge_commit_sha`, version pre-merge = ce que voyait le reviewer). Pour une PR
+  **ouverte** (pas de merge sha), passer par `GitHubExtractor.extract_pr_files([pr])` puis le patch
+  en base. La correction reste néanmoins **non appliquée et non compilée**.
 - **mathlib4 = bare repo**, pas de working tree → pas de `lake build` direct sur mathlib4.
 - Le **RAG vectoriel** a été retiré de l'`update` (plus d'indexation auto) et des **évaluations**
   (l'éval s'appuie sur `BASE_CONTEXT`, pas sur la recherche vectorielle). Il ne subsiste que pour

@@ -169,6 +169,42 @@ class LeanExtractor:
 
         return declarations
 
+    def list_commented_files(self, pr_number: int) -> list[dict]:
+        """List files that received inline review comments for a PR, ordered by comment count."""
+        from leankeeper.models.database import ReviewComment
+        from sqlalchemy import func
+        with self.session_factory() as session:
+            rows = (
+                session.query(ReviewComment.filepath, func.count().label("n"))
+                .filter(ReviewComment.pr_number == pr_number)
+                .filter(ReviewComment.filepath.isnot(None))
+                .group_by(ReviewComment.filepath)
+                .order_by(func.count().desc())
+                .all()
+            )
+            return [{"filepath": r.filepath, "comments": r.n} for r in rows]
+
+    def fetch_file_at_pr(self, pr_number: int, filepath: str, pre_merge: bool = True) -> str:
+        """Return the full content of a file at the time of a merged PR.
+
+        pre_merge=True (default): the file as it was in the PR branch (sha^).
+        pre_merge=False: the file after the merge (sha).
+        Uses merge_commit_sha from the DB and git show on the bare repo.
+        """
+        from leankeeper.models.database import PullRequest
+        with self.session_factory() as session:
+            pr = session.get(PullRequest, pr_number)
+            if not pr:
+                raise ValueError(f"PR #{pr_number} not found in database")
+            if not pr.merge_commit_sha:
+                raise ValueError(f"PR #{pr_number} has no merge_commit_sha (not merged?)")
+            sha = pr.merge_commit_sha
+        ref = f"{sha}^" if pre_merge else sha
+        try:
+            return self._git("show", f"{ref}:{filepath}", timeout=60)
+        except RuntimeError as e:
+            raise RuntimeError(f"Cannot read {filepath} at {ref}: {e}") from e
+
     def search_declarations(self, keyword: str, limit: int = 30) -> list[dict]:
         """Find indexed declarations whose name contains `keyword` (case-insensitive)."""
         with self.session_factory() as session:
