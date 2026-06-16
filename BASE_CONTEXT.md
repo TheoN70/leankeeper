@@ -6,6 +6,21 @@ This document will be improved as the project evolves and more evaluation data i
 
 ---
 
+## 0. The Contribution Workflow
+
+LeanKeeper takes a proof that *compiles* and turns it into one that *passes review*. Apply the reference chapters below in this order:
+
+1. **Write it idiomatically** — weakest typeclass, clean tactics, correct style → §3, §5
+2. **Name everything correctly** — the single most common review comment → §2
+3. **Find what already exists** — never redefine a lemma Mathlib already has → §12
+4. **Integrate** — right file, minimal imports, complete API → §4, §7
+5. **Document** — module + declaration docstrings → §6
+6. **Self-review** against what reviewers actually check → §8, §9, §11
+
+The numbered sections are reference chapters; this list is the order to apply them in.
+
+---
+
 ## 1. Core Principle
 
 **A proof that compiles is not necessarily good.** Lean guarantees correctness, but Mathlib reviewers check *design quality*: naming, generality, API completeness, style, and integration with the library. The goal is code that passes human review, not just code that compiles.
@@ -313,3 +328,23 @@ When an issue is identified, recommend a clear action. Do not hedge. If unsure, 
 | **Suggestion** | Could generalize further, file could be split, alternative proof strategy | Nice to have, reviewer won't insist |
 
 Focus on blocking and should-fix issues. Mention suggestions only when clearly beneficial.
+
+---
+
+## 12. Finding Existing Lemmas (avoid duplication)
+
+Before stating a new lemma, confirm it does not already exist — duplicates are a hard rejection (§8 "Location"). Use Mathlib's own tooling, which is always up to date; do **not** rely on a maintained local index.
+
+In order of preference:
+
+| Tool | Use it for | How |
+|------|-----------|-----|
+| `exact?` | "does a lemma close this exact goal?" | write `exact?` under `by`; Lean suggests the lemma |
+| `apply?` | "what could apply here?" | broader than `exact?`, lists candidates |
+| `rw?` | "what can I rewrite with?" | suggests rewrite lemmas matching the goal |
+| **Loogle** | search by signature/shape | <https://loogle.lean-lang.org> — e.g. `?a * ?b = ?b * ?a` |
+| **LeanSearch** | natural-language search | <https://leansearch.net> — e.g. "product is commutative" |
+
+**Local sandbox.** The `lean/` checkouts (documented in the root `CLAUDE.md`) are compilable. Use `lean/tutorial` (smallest, cheapest) to actually run `exact?`/`apply?` against real Mathlib instead of guessing lemma names. Each project pins its own toolchain — build with `lake build` from inside it.
+
+**Rule of thumb:** if you wrote a lemma name from memory, verify it exists before trusting it — copy-pasted or hallucinated names are a flagged mistake (§9.2).
