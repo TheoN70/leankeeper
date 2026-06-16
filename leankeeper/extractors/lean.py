@@ -169,6 +169,51 @@ class LeanExtractor:
 
         return declarations
 
+    def show_declaration(self, name: str) -> dict | None:
+        """Fetch the full source (statement + proof) of an indexed declaration by name.
+
+        Uses the stored (filepath, line) to read the file from the bare repo and slice the
+        declaration: from its keyword line (including any preceding flush-left `@[...]`
+        attributes) up to the next flush-left, non-empty line (the next top-level item).
+        Returns None if the name is not indexed. Source is from HEAD, not a PR branch.
+        """
+        with self.session_factory() as session:
+            decl = session.get(Declaration, name)
+            if not decl:
+                return None
+            filepath, start_line, kind, ns = decl.filepath, decl.line, decl.kind, decl.namespace
+
+        try:
+            content = self.get_file_content(filepath)
+        except RuntimeError as e:
+            logger.warning(f"Cannot read {filepath} at HEAD (renamed/deleted since indexing?): {e}")
+            return None
+        lines = content.split("\n")
+        start = start_line - 1  # stored line is 1-based
+        if start < 0 or start >= len(lines):
+            return None
+
+        # Include immediately preceding flush-left attribute lines (e.g. @[simp]).
+        while start - 1 >= 0 and lines[start - 1].startswith("@["):
+            start -= 1
+
+        # End at the next flush-left, non-empty line (proof bodies are indented).
+        end = len(lines)
+        for j in range(start_line, len(lines)):
+            if lines[j] and not lines[j][0].isspace():
+                end = j
+                break
+
+        source = "\n".join(lines[start:end]).rstrip()
+        return {
+            "name": name,
+            "kind": kind,
+            "filepath": filepath,
+            "line": start_line,
+            "namespace": ns,
+            "source": source,
+        }
+
     def _get_last_commit_sha(self) -> str | None:
         """Get the commit SHA stored from the last extraction."""
         marker = self.repo_dir / ".leankeeper_last_sha"

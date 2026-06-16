@@ -414,6 +414,21 @@ def cmd_rag(args, session_factory):
         print()
 
 
+def cmd_lean(args, session_factory):
+    """Query indexed Lean declarations."""
+    if args.action == "show":
+        from leankeeper.extractors.lean import LeanExtractor
+        result = LeanExtractor(session_factory).show_declaration(args.name)
+        if not result:
+            print(f"Not found: {args.name}")
+            print("(Not indexed? Run: python -m leankeeper extract lean)")
+            return
+        print(f"-- {result['name']}  ({result['kind']})")
+        print(f"-- {result['filepath']}:{result['line']}  [HEAD]")
+        print()
+        print(result["source"])
+
+
 def main():
     parser = argparse.ArgumentParser(description="LeanKeeper — Mathlib Dataset")
     parser.add_argument("--db", default=DATABASE_URL, help="Database URL")
@@ -484,6 +499,12 @@ def main():
 
     rag_sub.add_parser("status", help="Show embedding stats")
 
+    # lean
+    lean_parser = subparsers.add_parser("lean", help="Query indexed Lean declarations")
+    lean_sub = lean_parser.add_subparsers(dest="action")
+    lean_show = lean_sub.add_parser("show", help="Show the source (statement + proof) of a declaration by name")
+    lean_show.add_argument("name", help="Declaration name, e.g. Finset.sum_comm")
+
     args = parser.parse_args()
 
     if not args.command:
@@ -505,6 +526,11 @@ def main():
             rag_parser.print_help()
             sys.exit(1)
         cmd_rag(args, session_factory)
+    elif args.command == "lean":
+        if not args.action:
+            lean_parser.print_help()
+            sys.exit(1)
+        cmd_lean(args, session_factory)
 
 
 if __name__ == "__main__":

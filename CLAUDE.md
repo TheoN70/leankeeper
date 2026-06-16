@@ -133,6 +133,11 @@ psql -d leankeeper -c "SELECT pg_size_pretty(pg_database_size('leankeeper'));"
 python -m leankeeper export <table> <output_path>
 # Tables: commits, commit_files, pull_requests, pr_files, reviews, review_comments, issue_comments, zulip_channels, zulip_messages
 
+# Show the source (statement + proof) of an indexed Lean declaration by name
+python -m leankeeper lean show Finset.sum_comm
+# Resolves name -> (filepath, line) from the declarations table, then reads the
+# declaration body from the bare mathlib4 repo via `git show HEAD:<file>` (HEAD version, not a PR branch)
+
 # RAG
 python -m leankeeper rag init                           # Initialize pgvector extension
 python -m leankeeper rag index                          # Index all tables (~1h on CPU)
