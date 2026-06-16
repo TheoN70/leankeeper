@@ -43,8 +43,8 @@ logger = logging.getLogger("leankeeper")
 
 
 def cmd_update(args, session_factory):
-    """Full incremental update: extract new data + index new embeddings."""
-    logger.info("Starting full update...")
+    """Incremental update: extract new data. RAG indexing is a separate manual step ('rag index')."""
+    logger.info("Starting update...")
 
     # Step 1: Extract new data
     from leankeeper.extractors.github import GitHubExtractor
@@ -71,13 +71,7 @@ def cmd_update(args, session_factory):
     lean = LeanExtractor(session_factory)
     lean.extract_all(update_only=True)
 
-    # Step 2: Index new embeddings
-    from leankeeper.rag.store import index_table, SOURCE_MODELS
-    logger.info("── Indexing new embeddings ──")
-    for table_name in SOURCE_MODELS:
-        index_table(session_factory, table_name, update_only=True)
-
-    logger.info("Full update done.")
+    logger.info("Update done (extract only — run 'rag index --update' separately if you use RAG chat).")
 
 
 def cmd_extract(args, session_factory):
@@ -435,7 +429,7 @@ def main():
     subparsers = parser.add_subparsers(dest="command")
 
     # update
-    subparsers.add_parser("update", help="Full incremental update (extract + index new data)")
+    subparsers.add_parser("update", help="Incremental update (extract new data; RAG indexing is separate)")
 
     # extract
     extract_parser = subparsers.add_parser("extract", help="Extract data")

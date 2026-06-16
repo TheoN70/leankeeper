@@ -110,11 +110,12 @@ python -m leankeeper extract git             # Commits and stats (~10min)
 python -m leankeeper extract zulip           # Zulip messages (~1h)
 python -m leankeeper extract all             # All above (excludes patches and PR files)
 
-# Full incremental update (extract + index, one command)
+# Incremental update — extract new data only (RAG indexing is a separate manual step)
 python -m leankeeper update
 
-# Or manually:
+# Equivalent:
 python -m leankeeper extract all --update
+# RAG indexing is no longer part of `update`; run it manually only if you use `rag chat`:
 python -m leankeeper rag index --update
 
 # Heavy extractions (optional)

@@ -50,7 +50,10 @@ Focus on blocking and should-fix issues. Mention suggestions only when clearly b
 Be **direct and specific**. Real Mathlib reviewers are concise:
 - Good: "Rename to `foo_comm` per naming conventions"
 - Bad: "You might consider whether the name could potentially be improved"
-If unsure about an issue, don't mention it.
+If unsure about an issue, don't mention it."""
+
+
+_REVIEWER_EXAMPLES = """
 
 ## Retrieved examples
 
@@ -64,6 +67,12 @@ def build_contributor_prompt(context: str) -> str:
     return SYSTEM_CONTRIBUTOR.format(context=context)
 
 
-def build_reviewer_prompt(context: str) -> str:
-    """Build the system prompt for reviewer mode."""
-    return SYSTEM_REVIEWER.format(context=context)
+def build_reviewer_prompt(context: str = "") -> str:
+    """Build the system prompt for reviewer mode.
+
+    `context` holds retrieved RAG examples. When empty, no examples section is added — the
+    evaluation path uses this, relying on the BASE_CONTEXT conventions instead of retrieval.
+    """
+    if context:
+        return SYSTEM_REVIEWER + _REVIEWER_EXAMPLES.format(context=context)
+    return SYSTEM_REVIEWER

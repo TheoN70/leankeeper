@@ -10,12 +10,13 @@ Run this command to generate the evaluation context files for PR $ARGUMENTS:
 cd /home/administrateur/Bureau/Boulot/leankeeper/leankeeper && python -m leankeeper rag eval-context --pr $ARGUMENTS --output eval
 ```
 
-## Step 2: Read the RAG context
+## Step 2: Read the convention context
 
 Read the file `eval/pr_$ARGUMENTS_rag.md`. This contains:
 - The BASE_CONTEXT with all Mathlib conventions
 - The reviewer system prompt
-- Similar review examples retrieved from 152K historical review comments (temporally filtered to before this PR was created, with the PR's own reviews/comments excluded)
+
+(No vector retrieval: the review is grounded in the BASE_CONTEXT conventions, not in retrieved examples.)
 
 ## Step 3: Read the PR context
 

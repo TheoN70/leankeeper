@@ -10,7 +10,6 @@ from sqlalchemy import text
 
 from leankeeper.config import EMBEDDING_MODEL, RAG_BATCH_SIZE, VECTOR_DIMENSION
 from leankeeper.models.database import (
-    Declaration,
     IssueComment,
     PullRequest,
     Review,
@@ -28,7 +27,6 @@ MIN_TEXT_LENGTH = {
     "issue_comments": 30,
     "review_comments": 10,
     "pull_requests": 10,
-    "declarations": 10,
 }
 DEFAULT_MIN_TEXT_LENGTH = 10
 
@@ -39,7 +37,6 @@ TEXT_BUILDERS = {
     "pull_requests": lambda row: f"PR #{row.number}: {row.title}\n{row.body or ''}",
     "reviews": lambda row: f"{row.author} {row.state} on PR#{row.pr_number}:\n{row.body}" if row.body and row.body.strip() else "",
     "issue_comments": lambda row: f"{row.author} on PR#{row.pr_number}:\n{row.body}",
-    "declarations": lambda row: f"{row.name}: {row.type_signature or ''}\n{row.docstring or ''}",
 }
 
 SOURCE_MODELS = {
@@ -48,7 +45,6 @@ SOURCE_MODELS = {
     "pull_requests": PullRequest,
     "reviews": Review,
     "issue_comments": IssueComment,
-    "declarations": Declaration,
 }
 
 # Primary key column name per table
@@ -58,7 +54,6 @@ SOURCE_PK = {
     "pull_requests": "number",
     "reviews": "id",
     "issue_comments": "id",
-    "declarations": "name",
 }
 
 # Date column name per table (for temporal filtering)
@@ -68,7 +63,6 @@ SOURCE_DATE = {
     "pull_requests": "created_at",
     "reviews": "submitted_at",
     "issue_comments": "created_at",
-    "declarations": None,  # No date for declarations
 }
 
 

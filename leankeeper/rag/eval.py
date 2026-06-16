@@ -15,14 +15,22 @@ from sqlalchemy import text
 from leankeeper.models.database import (
     PullRequest,
     PullRequestFile,
-    Review,
     ReviewComment,
 )
-from leankeeper.rag.retriever import ask, _format_context
+from leankeeper.rag.llm import get_llm
 from leankeeper.rag.prompt import build_reviewer_prompt
-from leankeeper.rag import store
 
 logger = logging.getLogger(__name__)
+
+_BASE_CONTEXT_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "BASE_CONTEXT.md")
+
+
+def _load_base_context() -> str:
+    """Load BASE_CONTEXT.md (Mathlib conventions) if present, else empty string."""
+    if os.path.exists(_BASE_CONTEXT_PATH):
+        with open(_BASE_CONTEXT_PATH, "r", encoding="utf-8") as f:
+            return f.read()
+    return ""
 
 
 class RAGEvaluator:
@@ -119,42 +127,23 @@ class RAGEvaluator:
         if not actual:
             return {"pr_number": pr_number, "error": "No reviewer comments"}
 
-        # Get the PR creation date and collect IDs to exclude (prevent self-referencing)
-        with self.session_factory() as session:
-            pr = session.get(PullRequest, pr_number)
-            pr_date = pr.created_at if pr else None
-
-            # Collect all source IDs belonging to this PR to exclude from RAG search
-            exclude_ids = set()
-            review_ids = session.query(Review.id).filter_by(pr_number=pr_number).all()
-            for (rid,) in review_ids:
-                exclude_ids.add(str(rid))
-            comment_ids = session.query(ReviewComment.id).filter_by(pr_number=pr_number).all()
-            for (cid,) in comment_ids:
-                exclude_ids.add(str(cid))
-
         # Truncate context if too long for the LLM
         if len(context) > 8000:
             context = context[:8000] + "\n... [truncated]"
 
-        # Run RAG reviewer (only use data from before the PR was created,
-        # and explicitly exclude this PR's own reviews/comments)
-        rag_feedback = ask(
-            self.session_factory,
-            f"Review this Mathlib PR:\n\n{context}",
-            mode="reviewer",
-            limit=10,
-            backend=backend,
-            before_date=pr_date,
-            exclude_source_ids=exclude_ids,
-        )
+        # Review with the LLM, grounded in BASE_CONTEXT conventions (no RAG retrieval)
+        system = build_reviewer_prompt()
+        base = _load_base_context()
+        if base:
+            system = f"{base}\n\n---\n\n{system}"
+        feedback = get_llm(backend).generate(system, f"Review this Mathlib PR:\n\n{context}")
 
         return {
             "pr_number": pr_number,
             "title": context.split("\n")[0],
             "actual_comments": actual,
             "actual_count": len(actual),
-            "rag_feedback": rag_feedback,
+            "rag_feedback": feedback,
         }
 
     def run_batch(self, pr_numbers: list[int], backend: str = None) -> list[dict]:
@@ -213,7 +202,7 @@ class RAGEvaluator:
 
         Creates three .md files:
         - pr_<number>_context.md — PR diffs (what the reviewer sees)
-        - pr_<number>_rag.md — RAG system prompt + retrieved examples
+        - pr_<number>_rag.md — BASE_CONTEXT conventions + reviewer instructions (no RAG retrieval)
         - pr_<number>_actual.md — Actual reviewer comments (ground truth)
         """
         os.makedirs(output_dir, exist_ok=True)
@@ -230,34 +219,17 @@ class RAGEvaluator:
             logger.warning(f"PR #{pr_number}: no reviewer comments")
             return None
 
-        # PR date for temporal filtering + collect IDs to exclude
+        # PR metadata
         with self.session_factory() as session:
             pr = session.get(PullRequest, pr_number)
-            pr_date = pr.created_at if pr else None
             pr_title = pr.title if pr else ""
             pr_author = pr.author if pr else ""
 
-            # Collect all source IDs belonging to this PR to exclude from RAG search
-            exclude_ids = set()
-            review_ids = session.query(Review.id).filter_by(pr_number=pr_number).all()
-            for (rid,) in review_ids:
-                exclude_ids.add(str(rid))
-            comment_ids = session.query(ReviewComment.id).filter_by(pr_number=pr_number).all()
-            for (cid,) in comment_ids:
-                exclude_ids.add(str(cid))
-
-        # Truncate context for RAG query
+        # Truncate context for the reviewer prompt
         query_context = context[:8000] if len(context) > 8000 else context
 
-        # RAG retrieval (no LLM call, excluding this PR's own data)
-        sources = ["review_comments", "reviews"]
-        results = store.search(
-            self.session_factory, query_context,
-            source_tables=sources, limit=10, before_date=pr_date,
-            exclude_source_ids=exclude_ids,
-        )
-        rag_examples = _format_context(results) if results else "(No relevant examples found.)"
-        rag_prompt = build_reviewer_prompt(rag_examples)
+        # Reviewer instructions, no RAG retrieval (conventions come from BASE_CONTEXT below)
+        rag_prompt = build_reviewer_prompt()
 
         # Write files
         ctx_path = os.path.join(output_dir, f"pr_{pr_number}_context.md")
