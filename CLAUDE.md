@@ -194,6 +194,22 @@ All public and extractible via GitHub and Zulip APIs:
 - Linter/CI results
 - Import dependency graph
 
+### Local Lean libraries (`lean/`)
+
+Local checkouts of real Lean 4 projects, available as a **tool** for compiling, testing,
+and harvesting idiomatic examples. **Gitignored and ~13 GB — do not traverse the whole tree**
+(it includes built `.lake/` artifacts and `html/` output). Each has its own pinned
+`lean-toolchain`; build with `lake build` from inside the project.
+
+| Path | Toolchain | What it is | Use for |
+|------|-----------|------------|---------|
+| `lean/aristotle/` | `v4.29.0-rc6` | Aristotle project (largest, ~7 GB) | Real-world Lean code to compile against / mine |
+| `lean/mathematics_in_lean/` | `v4.21.0` | *Mathematics in Lean* textbook (MIL) + Mathlib | Idiomatic proofs, teaching-grade examples |
+| `lean/tutorial/` | `v4.28.0` | Small tutorial project (~5 MB) | Quick sandbox to test snippets cheaply |
+
+To inspect, target a specific file/dir — never `grep -r` or `ls -R` the root. The `tutorial`
+project is the cheapest place to compile-check a snippet.
+
 ### Documentation
 
 - **[`BASE_CONTEXT.md`](BASE_CONTEXT.md)** — Complete reference for AI-assisted Mathlib contributions: all conventions, naming rules, style guide, review criteria, and lessons learned from evaluation. Used as base context for `rag context` and evaluation skills.
