@@ -59,6 +59,7 @@ update                              # extract des nouvelles données seulement (
 ```bash
 stats                               # statistiques DB
 export <table> <output_path>        # dump JSONL d'une table
+lean search <keyword>              # déclarations dont le nom contient le mot-clé
 lean show <name>                    # source (énoncé + preuve) d'une déclaration, via git show HEAD
 ```
 

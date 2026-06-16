@@ -410,9 +410,19 @@ def cmd_rag(args, session_factory):
 
 def cmd_lean(args, session_factory):
     """Query indexed Lean declarations."""
-    if args.action == "show":
-        from leankeeper.extractors.lean import LeanExtractor
-        result = LeanExtractor(session_factory).show_declaration(args.name)
+    from leankeeper.extractors.lean import LeanExtractor
+    extractor = LeanExtractor(session_factory)
+
+    if args.action == "search":
+        matches = extractor.search_declarations(args.keyword, limit=args.limit)
+        if not matches:
+            print(f"No declaration name matches: {args.keyword}")
+            return
+        for m in matches:
+            print(f"{m['name']}  [{m['kind']}]  {m['filepath']}:{m['line']}")
+        print(f"\n({len(matches)} shown — use 'lean show <name>' to see the proof)")
+    elif args.action == "show":
+        result = extractor.show_declaration(args.name)
         if not result:
             print(f"Not found: {args.name}")
             print("(Not indexed? Run: python -m leankeeper extract lean)")
@@ -496,6 +506,9 @@ def main():
     # lean
     lean_parser = subparsers.add_parser("lean", help="Query indexed Lean declarations")
     lean_sub = lean_parser.add_subparsers(dest="action")
+    lean_search = lean_sub.add_parser("search", help="Find declarations whose name contains a keyword")
+    lean_search.add_argument("keyword", help="Substring to match in declaration names, e.g. add_pow")
+    lean_search.add_argument("--limit", type=int, default=30, help="Max results (default: 30)")
     lean_show = lean_sub.add_parser("show", help="Show the source (statement + proof) of a declaration by name")
     lean_show.add_argument("name", help="Declaration name, e.g. Finset.sum_comm")
 

@@ -134,6 +134,9 @@ psql -d leankeeper -c "SELECT pg_size_pretty(pg_database_size('leankeeper'));"
 python -m leankeeper export <table> <output_path>
 # Tables: commits, commit_files, pull_requests, pr_files, reviews, review_comments, issue_comments, zulip_channels, zulip_messages
 
+# Find declarations whose name contains a keyword (then `lean show` to read the proof)
+python -m leankeeper lean search add_pow
+
 # Show the source (statement + proof) of an indexed Lean declaration by name
 python -m leankeeper lean show Finset.sum_comm
 # Resolves name -> (filepath, line) from the declarations table, then reads the

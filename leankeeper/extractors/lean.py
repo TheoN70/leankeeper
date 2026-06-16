@@ -169,6 +169,21 @@ class LeanExtractor:
 
         return declarations
 
+    def search_declarations(self, keyword: str, limit: int = 30) -> list[dict]:
+        """Find indexed declarations whose name contains `keyword` (case-insensitive)."""
+        with self.session_factory() as session:
+            rows = (
+                session.query(Declaration)
+                .filter(Declaration.name.ilike(f"%{keyword}%"))
+                .order_by(Declaration.name)
+                .limit(limit)
+                .all()
+            )
+            return [
+                {"name": d.name, "kind": d.kind, "filepath": d.filepath, "line": d.line}
+                for d in rows
+            ]
+
     def show_declaration(self, name: str) -> dict | None:
         """Fetch the full source (statement + proof) of an indexed declaration by name.
 
